@@ -22,9 +22,13 @@ import six
 
 main_loop = asyncio.get_event_loop()
 
-def init_async(coroutine: asyncio.coroutine, loop = None):
-    if not loop: loop = asyncio.get_event_loop()
-    return loop.run_until_complete(coroutine)
+def init_async(coro: asyncio.coroutine, loop = main_loop):
+    if loop.is_running():
+        raise exceptions.LoopStateError("This event loop is currently running")
+
+    else:
+        return loop.run_until_complete(coro)
+
 
 class event_parser(threading.Thread):
     def __init__(self, library, event):
@@ -47,7 +51,7 @@ class event_parser(threading.Thread):
                     package.items = []
 
                     if hasattr(package, 'action'): 
-                        package.items = [self.library.tools.getValue("ACTION")]
+                        package.items.append(self.library.tools.getValue("ACTION"))
                     
                     elif hasattr(package, 'payload'):
                         package.items.append(self.library.tools.getValue("PAYLOAD"))
@@ -64,21 +68,18 @@ class event_parser(threading.Thread):
                         self.parse_package(package)
 
                 else:
-                    package = objects.package(**dict())
+                    package = objects.package(**self.event['object'])
                     event_object = self.event['object']
-                    package.peer_id = event_object['user_id']
 
-                    for key, value in obj.items():
+                    for key, value in event_object.items():
                         if key in _ohr.peer_id: 
                             package.peer_id = value
 
                         if key in _ohr.from_id: 
                             package.from_id = value
-
-                        package[key] = value
                     
                     package.items.append(self.event)
-                    package.items.append(self.library.tools.getObject("ENDLINE"))
+                    package.items.append(self.library.tools.getValue("ENDLINE"))
                     package.type = event_type
                     package.__dict__.update(
                         event_object
@@ -108,7 +109,6 @@ class event_parser(threading.Thread):
             if len(package.items) != 0 or not self.library.tools.getValue("ONLY_COMMANDS").value:
                 self.parse_package(package)
         
-
 
     def parse_command(self, messagetoreact):
         for i in self.library.tools.expression_list:
@@ -161,7 +161,6 @@ class event_parser(threading.Thread):
                 reaction = self.thread_loop.run_until_complete(
                     asyncio.gather(*modules)
                     )
-
                 if len(self.library.error_handlers) > 0:
                     if len(reaction) == 0:
                         reaction.append([self.library.tools.getValue("NOREACT")])
@@ -187,6 +186,7 @@ class event_parser(threading.Thread):
                                         event_package.items[1] = self.library.tools.getValue("LIBRARY_ERROR")
 
                                     eh = [asyncio.ensure_future(self.library.modules[i].error_handler(self.library.tools, event_package), loop = self.thread_loop) for i in self.library.error_handlers]
+                                    
                                     self.library.tools.module = 'error_handler'
                                     self.thread_loop.run_until_complete(asyncio.wait(eh))
 
@@ -198,14 +198,16 @@ class event_parser(threading.Thread):
                     response += self.library.tools.getValue("MESSAGE_HANDLER_CHAT").value + '\n'
 
                 response += self.library.tools.getValue("MESSAGE_HANDLER_USER").value + '\n'
-                response += self.library.tools.getValue("MESSAGE_HANDLER_ITEMS").value + '\n'
-                if hasattr(event_package, 'text'): response += self.library.tools.getValue("MESSAGE_HANDLER_IT").value + '\n'
+                if self.library.tools.getValue("NOT_COMMAND") not in itemscopy:
+                    response += self.library.tools.getValue("MESSAGE_HANDLER_ITEMS").value + '\n'
+                    itemscopy = [i.value if isinstance(i, objects.expression) else i for i in itemscopy[:-1]]
+                if event_package.text !='': response += self.library.tools.getValue("MESSAGE_HANDLER_IT").value + '\n'
                 
                 response = response.format(
                     peer_id = event_package.peer_id,
                     from_id = event_package.from_id,
                     event_type = event_package.type.value,
-                    items = itemscopy[:-1],
+                    items = itemscopy,
                     text = event_package.text
                 )
                 self.library.tools.system_message(response)
@@ -298,7 +300,7 @@ class app:
 
 
     def __close_session(self):
-        main_loop.run_until_complete(self.__http.close())
+        init_async(self.__http.close())
         self.__library.tools.module = "http"
         self.__library.tools.system_message(self.__library.tools.getValue("SESSION_CLOSE").value)
         if not self.__library.tools.log.closed:
@@ -341,7 +343,6 @@ class app:
         )
 
         self.last_request = time.time()
-
         response = await response.json()
         if 'error' in response:
             
@@ -412,6 +413,7 @@ class app:
         """
 
         self.setup()
+        self.__library.tools.module = 'longpoll'
         self.__library.tools.system_message(
             self.__library.tools.getValue("SESSION_START_POLLING").value)
         main_loop.run_until_complete(
@@ -429,7 +431,7 @@ class app:
             self.__library.tools.getValue("SESSION_CHECK_SERVER").value)
         while times != 0:
             times -= 1
-            init_async(self.__polling())
+            init_async(self.__polling(), loop=main_loop)
         
         self.__library.tools.system_message(self.__library.tools.getValue("SESSION_LISTEN_CLOSE").value)
 
@@ -537,8 +539,8 @@ class library:
     modules = {}
     event_supports = {}
 
-    error_handlers = ['static']
-    package_handlers = ['static']
+    error_handlers = []
+    package_handlers = []
     hidden_modules = []
 
 
@@ -552,19 +554,27 @@ class library:
             self.tools.module = "library.uploader"
             self.tools.system_message(self.tools.getValue("LIBRARY_UPLOADER_GET"))
             
-            main_loop.run_until_complete(asyncio.gather(*[
-                                    self.moduleload(module) for module in filter(
-                                        lambda module_name: 0 if module_name != '__pycache__' else 1, 
-                                        os.listdir(os.getcwd() + '\\library\\'))
-                                    ]))
+            listdir = os.listdir(os.getcwd() + '\\library\\')
+            listdir.remove("__pycache__")
+            if len(listdir) == 0:
+                raise exceptions.LibraryError(
+                    self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
+                
+            init_async(
+                asyncio.wait(
+                    [
+                        main_loop.create_task(self.moduleload(module)) for module in listdir
+                    ]
+                ), loop = main_loop
+            )
         
         
     async def moduleload(self, module_name):
         module = importlib.import_module("library." + module_name[:-3] if module_name.endswith('.py') else module_name + 'main')
-        
+        if module_name[-3:] == '.py': module_name = module_name[:-3]
         if hasattr(module, 'Main'):
             moduleObj = module.Main()
-            if issubclass(type(module), objects.libraryModule):
+            if issubclass(type(moduleObj), objects.libraryModule):
                 await moduleObj.start(self.tools)
             else:
                 return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
@@ -578,9 +588,9 @@ class library:
         if hasattr(moduleObj, 'error_handler'): self.error_handlers.append(module_name)
         if hasattr(moduleObj, 'package_handler'):
             if len(moduleObj.packagetype) > 0:
-                for package in moduleObj.packagetype.packagetype:
-                    if package not in self.__compactible: self.__compactible[package] = list()
-                    self.__compactible[package].append(module_name)
+                for package in moduleObj.packagetype:
+                    if package not in self.event_supports: self.event_supports[package] = list()
+                    self.event_supports[package].append(module_name)
 
                 self.package_handlers.append(module_name)
 
@@ -616,7 +626,7 @@ class longpoll:
 
         self.timeout = aiohttp.ClientTimeout(total = 35)
 
-        init_async(self.update_longpoll_server())
+        init_async(self.update_longpoll_server(), loop=main_loop)
         
 
     async def update_longpoll_server(self, update_ts=True):
@@ -670,7 +680,7 @@ class session_async:
     wrapper over about aiohttp.ClientSession() to avoid RuntimeError/ServerDisconnectedError
     """
     def __init__(self, headers):
-        self.__http = None
+        self.http = None
         self.headers = headers
         self.all_exceptions = [
                 "ClientError",
@@ -706,10 +716,10 @@ class session_async:
 
 
     async def update_http(self):
-        if self.__http:
-            await self.__http.close()
-            self.__http = None
-        self.__http = aiohttp.ClientSession()
+        if self.http:
+            await self.http.close()
+            self.http = None
+        self.http = aiohttp.ClientSession()
 
 
     def __getattr__(self, name):
@@ -717,7 +727,7 @@ class session_async:
             return self.__request_get(name)
 
         else:
-            return getattr(self.__http, name)
+            return getattr(self.http, name)
 
 
     def __request_get(self, name):
@@ -726,25 +736,28 @@ class session_async:
 
 
     async def __request(self, *args, **kwargs):
-        h = kwargs.pop('headers') if 'headers' in kwargs else self.headers
+        if 'headers' in kwargs:
+            h = kwargs.pop('headers')
+            h.update(self.headers)
+        else:
+            h = self.headers
 
-        if not self.__http:
+        if not self.http:
             await self.update_http()
 
         try:
-            return await getattr(self.__http, self.last_method)(headers = h, *args, **kwargs)
+            return await getattr(self.http, self.last_method)(headers = h, *args, **kwargs)
 
         except (RuntimeError, OSError, *self.ignore_exceptions) as e:
             await self.update_http()
-            return await getattr(self.__http, self.last_method)(headers = h, *args, **kwargs)
+            return await getattr(self.http, self.last_method)(headers = h, *args, **kwargs)
 
 
 class tools:
     module = "system"
-    __db = databases(("system", "system.db"))
-    get = self.__db.get
-
     log = assets("log.txt", "a+", encoding="utf-8")
+    __db = databases(("system", "system.db"))
+
     def __init__(self, number, api, http):
         self.group_id = number
         self.api = api
@@ -754,6 +767,8 @@ class tools:
         self.group_mention = f'[club{self.group_id}|@{self.group_address}]'
         self.mentions = [self.group_mention]
         self.mentions_name_cases = []
+        self.get = self.__db.get
+
 
 
         for print_test in self.getValue("LOGGER_START").value:
@@ -791,6 +806,7 @@ class tools:
     async def __setShort(self):
         res = await self.api.groups.getById(group_id=self.group_id)
         self.group_address = res[0].screen_name
+        return 1
 
 
     def system_message(self, textToPrint:str):
@@ -953,8 +969,6 @@ class tools:
         return response
 
 
-
-
 supporting = [
-    objects.static, *[(0.85 + 0.001) // 0.001 * 0.001 for i in range(1, 2)]
+    objects.static, *[(0.85 + 0.001) // 0.001 * 0.001 for i in range(1, 3)]
     ]

@@ -53,7 +53,7 @@ expressions = cover_expressions()
 
 def setExpression(name, value = None):
     global expressions
-    if value == None: value = f":::{project_name}:{name}:::"
+    if value == None: value = f":::{name}:::"
         
     setattr(expressions, name, expression(value))
     expressions.list.append(name)
@@ -61,16 +61,16 @@ def setExpression(name, value = None):
 
 setExpression("LOGGER_START", ['TESTCANARYBOT 0.8', 'KENSOI.GITHUB.IO 2020', ''])
 setExpression("SESSION_START", "started")
-setExpression("SESSION_LONGPOLL_START", "connected")
-setExpression("SESSION_LONGPOLL_ERROR", "is not connected [LongpollError Exception]")
+setExpression("SESSION_LONGPOLL_ERROR", "have not been connected")
+setExpression("SESSION_LIBRARY_ERROR", "library directory is broken")
 setExpression("SESSION_CLOSE", "session closed")
-setExpression("SESSION_LISTEN_START", "listenning is started")
-setExpression("SESSION_LISTEN_CLOSE", "listenning is finished")
+setExpression("SESSION_START_POLLING", "polling is started")
+setExpression("SESSION_CLOSE_POLLING", "polling is finished")
 
 setExpression("MESSAGE_HANDLER_ITEMS", "\t\titems: {items}")
 setExpression("MESSAGE_HANDLER_TYPE", "{event_type}")
-setExpression("MESSAGE_HANDLER_CHAT", "\t\tchat: {peer_id}")
-setExpression("MESSAGE_HANDLER_USER", "\t\tuser: {from_id}")
+setExpression("MESSAGE_HANDLER_CHAT", "\t\tpeer id: {peer_id}")
+setExpression("MESSAGE_HANDLER_USER", "\t\tfrom id: {from_id}")
 setExpression("MESSAGE_HANDLER_IT", "\t\ttext: {text}")
 
 setExpression("ENDLINE")
@@ -97,7 +97,7 @@ setExpression("LIBRARY_RESPONSE_DESCR", "{name}: \n{descr} ")
 setExpression("FWD_MES", "forwarded messages")
 setExpression("BEEPA_PAPASA", ":::NYASHKA:NYASHKA:::")
 
-
+setExpression("LIBRARY_UPLOADER_GET", "library directory is listed")
 setExpression("MODULE_INIT", "{module} is loaded")
 setExpression("MODULE_FAILED_BROKEN", "{module} is broken: no 'Main' class")
 setExpression("MODULE_FAILED_SUBCLASS", "{module} is broken: is not inherited from testcanarybot.objects.libraryModule")

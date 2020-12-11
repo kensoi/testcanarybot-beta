@@ -1,5 +1,8 @@
 class LongpollError(Exception):
     pass
+
+class LoopStateError(Exception):
+    pass
     
 class LibraryError(Exception):
     pass
