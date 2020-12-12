@@ -1,5 +1,6 @@
 from . import exceptions
 from . import objects
+from ._values import _ohr
 from ._values import events
 from ._values import expressions
 from ._values import setExpression
@@ -35,11 +36,16 @@ class event_parser(threading.Thread):
         threading.Thread.__init__(self)
 
         self.thread_loop = asyncio.new_event_loop()
+        self.thread_loop.set_exception_handler(self.exception_handler)
         asyncio.set_event_loop(self.thread_loop)
 
         self.library = library
         self.event = event
 
+
+    def exception_handler(loop, context):
+        print(loop, context.get("exception", None))
+        
 
     def run(self):
         if isinstance(self.event, dict):
@@ -86,37 +92,9 @@ class event_parser(threading.Thread):
                     )
 
                     self.parse_package(package)
-                    
-        elif issubclass(type(self.event), objects.Object):
-            package = self.event
-            package.type = events.message_new
-            package.items = []
 
-            if hasattr(package, 'action'): 
-                package.items = [self.library.tools.getValue("ACTION")]
-            
-            elif hasattr(package, 'payload'):
-                package.items.append(self.library.tools.getValue("PAYLOAD"))
-                package.payload = json.loads(package.payload)
-
-            elif package.text != '': 
-                package.items = self.parse_command(package.text)
-
-            elif len(package.attachments) > 0: 
-                package.items.append(self.library.tools.getValue("ATTACHMENTS"))
-                
-            package.items.append(self.library.tools.getValue("ENDLINE"))
-            if len(package.items) != 0 or not self.library.tools.getValue("ONLY_COMMANDS").value:
-                self.parse_package(package)
         
-
     def parse_command(self, messagetoreact):
-        for i in self.library.tools.expression_list:
-            value = self.library.tools.getValue(i)
-
-            if type(value) is str and value in messagetoreact:
-                messagetoreact = messagetoreact.replace(i, ':::SYSTEM:::')
-
         response = []
         message = messagetoreact.split() 
 
@@ -198,7 +176,7 @@ class event_parser(threading.Thread):
                     response += self.library.tools.getValue("MESSAGE_HANDLER_CHAT").value + '\n'
 
                 response += self.library.tools.getValue("MESSAGE_HANDLER_USER").value + '\n'
-                if self.library.tools.getValue("NOT_COMMAND") not in itemscopy:
+                if self.library.tools.getValue("NOT_COMMAND") not in itemscopy and self.library.tools.ischecktype(itemscopy, objects.expression):
                     response += self.library.tools.getValue("MESSAGE_HANDLER_ITEMS").value + '\n'
                     itemscopy = [i.value if isinstance(i, objects.expression) else i for i in itemscopy[:-1]]
                 if event_package.text !='': response += self.library.tools.getValue("MESSAGE_HANDLER_IT").value + '\n'
@@ -213,19 +191,11 @@ class event_parser(threading.Thread):
                 self.library.tools.system_message(response)
 
 
-class _ohr:
-    from_id = ['deleter_id', 'liker_id', 'user_id']
-    peer_id = ['market_owner_id', 'owner_id', 'object_owner_id', 
-                'post_owner_id', 'photo_owner_id', 'topic_owner_id', 
-                'video_owner_id', 'to_id'
-                ]
-
-
 class api:
-    __slots__ = ('_http', '_method', '_string')
+    __slots__ = ('http', '_method', '_string')
 
-    def __init__(self, __http, method, string = None):
-        self._http = __http
+    def __init__(self, http, method, string = None):
+        self.http = http
         self._method = method    
         self._string = string
 
@@ -238,7 +208,7 @@ class api:
         self._string = self._string + "." if self._string else ""
 
         return api(
-            self._http, self._method,
+            self.http, self._method,
             (self._string if self._method else '') + method
         )
 
@@ -300,7 +270,6 @@ class app:
 
 
     def __close_session(self):
-        init_async(self.__http.close())
         self.__library.tools.module = "http"
         self.__library.tools.system_message(self.__library.tools.getValue("SESSION_CLOSE").value)
         if not self.__library.tools.log.closed:
@@ -371,8 +340,8 @@ class app:
         self.__library.tools.getValue(string)
     
 
-    def setValue(self, string: str, value):
-        self.__library.tools.setValue(string, value)
+    def setValue(self, string: str, value, exp_type = ""):
+        self.__library.tools.setValue(string, value, exp_type)
 
 
     def getModule(self, name: str):
@@ -567,6 +536,11 @@ class library:
                     ]
                 ), loop = main_loop
             )
+            self.tools.system_message(
+                "Supporting event types: {event_types}".format(
+                    event_types = "\n".join(["", *["\t\t" + str(i) for i in self.event_supports.keys()]])
+                )
+            )
         
         
     async def moduleload(self, module_name):
@@ -609,8 +583,10 @@ class library:
 
 
     def getCompactible(self, packagetype):
-        for module in self.package_handlers:
-            if packagetype in self.modules[module].packagetype: yield module
+        if packagetype in self.event_supports:
+            return self.event_supports[packagetype]
+        else:
+            return []
 
 
 class longpoll:
@@ -680,46 +656,14 @@ class session_async:
     wrapper over about aiohttp.ClientSession() to avoid RuntimeError/ServerDisconnectedError
     """
     def __init__(self, headers):
-        self.http = None
         self.headers = headers
-        self.all_exceptions = [
-                "ClientError",
-                "ClientConnectionError",
-                "ClientOSError",
-                "ClientConnectorError",
-                "ClientProxyConnectionError",
-                "ClientSSLError",
-                "ClientConnectorSSLError",
-                "ClientConnectorCertificateError",
-                "ServerConnectionError",
-                "ServerTimeoutError",
-                "ServerDisconnectedError",
-                "ServerFingerprintMismatch",
-                "ClientResponseError",
-                "ClientHttpProxyError",
-                "WSServerHandshakeError",
-                "ContentTypeError",
-                "ClientPayloadError",
-                "InvalidURL"
-        ]
-        self.update_ignorelist(
-            [
-                "ServerDisconnectedError"
-                ]
-            )
 
     
     def update_ignorelist(self, ignorelist: list):
         self.ignore_exceptions = [
             getattr(aiohttp.client_exceptions, i) for i in ignorelist
             ]
-
-
-    async def update_http(self):
-        if self.http:
-            await self.http.close()
-            self.http = None
-        self.http = aiohttp.ClientSession()
+        self.ignore_exceptions.extend([RuntimeError, OSError, ConnectionResetError])
 
 
     def __getattr__(self, name):
@@ -727,30 +671,32 @@ class session_async:
             return self.__request_get(name)
 
         else:
-            return getattr(self.http, name)
+            AttributeError(f"{name} not found")
 
 
     def __request_get(self, name):
-        self.last_method = name
-        return self.__request
+        async def request(*args, **kwargs):
+            if 'headers' in kwargs:
+                h = kwargs.pop('headers')
+                h.update(self.headers)
+            else:
+                h = self.headers
+
+            async with aiohttp.request(name.upper(), *args, **kwargs, headers = h) as resp:
+                await resp.json()
+                return resp
+            # return await request_try(name, h, args, kwargs)
 
 
-    async def __request(self, *args, **kwargs):
-        if 'headers' in kwargs:
-            h = kwargs.pop('headers')
-            h.update(self.headers)
-        else:
-            h = self.headers
+        # async def request_try(name, h, args, kwargs):
+        #     try:
+        #         return await getattr(self.http, name)(headers = h, *args, **kwargs)
 
-        if not self.http:
-            await self.update_http()
+        #     except (IndexError, *self.ignore_exceptions) as e:
+        #         await self.update_http()
+        #         return await request_try(name, h, args, kwargs)
 
-        try:
-            return await getattr(self.http, self.last_method)(headers = h, *args, **kwargs)
-
-        except (RuntimeError, OSError, *self.ignore_exceptions) as e:
-            await self.update_http()
-            return await getattr(self.http, self.last_method)(headers = h, *args, **kwargs)
+        return request   
 
 
 class tools:
@@ -848,9 +794,9 @@ class tools:
         return self.getDate(time) + ' ' + self.getTime(time)
 
 
-    def setValue(self, nameOfObject: str, newValue):
-        setExpression(nameOfObject, newValue)
-        self.update_list()
+    def setValue(self, nameOfObject: str, newValue, exp_type = ""):
+        setExpression(nameOfObject, newValue, exp_type)
+        self.update_list(nameOfObject)
 
 
     def getValue(self, nameOfObject: str):
@@ -861,10 +807,12 @@ class tools:
             return "AttributeError"
 
 
-    def update_list(self):
+    def update_list(self, nameOfObject = ""):
         if hasattr(self, "expression_list"):
             if expressions.list != self.expression_list:
                 self.expression_list = expressions.list
+                if nameOfObject != "":
+                    expressions.parse(nameOfObject)
         
         else:
             self.expression_list = expressions.list
@@ -970,5 +918,5 @@ class tools:
 
 
 supporting = [
-    objects.static, *[(0.85 + 0.001) // 0.001 * 0.001 for i in range(1, 3)]
+    objects.static, *[(0.85 + 0.001) // 0.001 * 0.001 for i in range(1, 4)]
     ]
