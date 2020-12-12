@@ -1,4 +1,3 @@
-from enum import Enum
 class cover_expressions:
     list = []
     types = {
@@ -16,16 +15,6 @@ class cover_expressions:
     def parse(self, name):
         pass
 
-def setExpression(name, value: str = "", exp_type = "object"):
-    global expressions
-    if value == "": value = f":::{name}:::"
-        
-    setattr(expressions, name, expression(value, exp_type))
-    expressions.list.append(name)
-
-    if exp_type in expressions.types.keys():
-        expressions.types[exp_type].append(name)
-
 
 class expression:
     __slots__ = ('value', 'type') 
@@ -37,41 +26,18 @@ class expression:
         return self.value
 
 
-project_name = "TESTCANARYBOT"
-
-module_cover = """from testcanarybot.objects import libraryModule{package_handler_import}
-
-class Main(libraryModule):
-    async def start(self, tools):
-        self.name = "{name}" # optional
-        self.version = 0.851 # optional
-        self.description = \"\"\"
-            {descr}\"\"\" # optional{package_events}
+def setExpression(name, value: str = "", exp_type = "object"):
+    global expressions
+    if value == "": value = f":::{name}:::"
         
-        {package_handler}{error_handler}
-"""
-package_events = """
-        self.packagetype = [
-            events.message_new
-        ]"""
-package_handler = """
-    async def package_handler(self, tools, package):
-        # tools: testcanarybot.tools
-        # package: formatted into message object got from longpoll server
-        pass
+    setattr(expressions, name, expression(value, exp_type))
+    expressions.list.append(name)
 
-"""
-package_handler_import = ", events # for Main.package_handler"
+    if exp_type in expressions.types.keys():
+        expressions.types[exp_type].append(name)
 
-error_handler = """
-    async def error_handler(self, tools, package):
-        # tools: testcanarybot.tools
-        # package: formatted into message object got from longpoll server
-        pass
-"""
 
 expressions = cover_expressions()
-
 
 setExpression("LOGGER_START", ['TESTCANARYBOT 0.8', 'KENSOI.GITHUB.IO 2020', ''], "log")
 setExpression("SESSION_START", "started", "log")
@@ -124,68 +90,9 @@ setExpression("NOT_COMMAND", exp_type = "package_expr")
 
 setExpression("ONLY_COMMANDS", True, "bool")
 
-
 class _ohr:
     from_id = ['deleter_id', 'liker_id', 'user_id']
     peer_id = ['market_owner_id', 'owner_id', 'object_owner_id', 
                 'post_owner_id', 'photo_owner_id', 'topic_owner_id', 
                 'video_owner_id', 'to_id'
                 ]
-
-
-class events(Enum):
-    message_new = 'message_new'
-    message_allow = 'message_allow'
-    message_deny = 'message_deny'
-    message_event = 'message_event'
-    
-    photo_new = 'photo_new'
-    photo_comment_new = 'photo_comment_new'
-    photo_comment_edit = 'photo_comment_edit'
-    photo_comment_restore = 'photo_comment_restore'
-    photo_comment_delete = 'photo_comment_delete'
-
-    audio_new = 'audio_new'
-
-    video_new = 'video_new'
-    video_comment_new = 'video_comment_new'
-    video_comment_edit = 'video_comment_edit'
-    video_comment_restore = 'video_comment_restore'
-    video_comment_delete = 'video_comment_delete'
-
-    wall_post_new = 'wall_post_new'
-    wall_repost = 'wall_repost'
-    wall_reply_new = 'wall_reply_new'
-    wall_reply_edit = 'wall_reply_edit'
-    wall_reply_restore = 'wall_reply_restore'
-    wall_reply_delete = 'wall_reply_delete'
-
-    board_post_new = 'board_post_new'
-    board_post_edit = 'board_post_edit'
-    board_post_restore = 'board_post_restore'
-    board_post_delete = 'board_post_delete'
-
-    market_comment_new = 'market_comment_new'
-    market_comment_edit = 'market_comment_edit'
-    market_comment_restore = 'market_comment_restore'
-    market_comment_delete = 'market_comment_delete'
-    market_order_new = 'market_order_new'
-    market_order_edit = 'market_order_edit'
-
-    group_leave = 'group_leave'
-    group_join = 'group_join'
-
-    user_block = 'user_block'
-    user_unblock = 'user_unblock'
-
-    poll_vote_new = 'poll_vote_new'
-
-    group_officers_edit = 'group_officers_edit'
-    group_change_settings = 'group_change_settings'
-    group_change_photo = 'group_change_photo'
-
-    vkpay_transaction = 'vkpay_transaction'
-    app_payload = 'app_payload'
-
-    like_add = 'like_add'
-    like_remove = 'like_remove'

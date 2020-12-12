@@ -7,28 +7,7 @@ import os
 import six
 
 from .objects import Object
-
-
-class _assets:
-    def __init__(self):
-        self.path = os.getcwd() + '\\assets\\'
-
-    def __call__(self, *args, **kwargs):
-        args = list(args)
-        if len(args) > 0:
-            args[0] = self.path + args[0]
-        
-        elif 'file' in kwargs:
-            kwargs['file'] = self.path + kwargs['file']
-        
-        return open(*args, **kwargs)
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        pass
-
-
-assets = _assets()
-
+from .library import assets, init_async
 
 class uploader:
     __slots__ = ('__api', '__http')

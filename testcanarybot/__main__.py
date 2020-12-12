@@ -1,13 +1,9 @@
 import argparse
 import os
-import string as sr
+import string
 import random
 
-from ._values import module_cover
-from ._values import package_events
-from ._values import package_handler
-from ._values import package_handler_import
-from ._values import error_handler
+from .source.manager import *
 
 parser = argparse.ArgumentParser(description='manager for testcanarybot')
 parser.add_argument("-c", dest="create_module", action = 'store_true', help='create a testcanarybot 0.7 module')
@@ -33,8 +29,8 @@ def parsename(name: str):
     test, i = len(name), 0
     while i< test:
         if name[i] not in [
-                *sr.ascii_lowercase,
-                *sr.digits]:
+                *string.ascii_lowercase,
+                *string.digits]:
             name = name[:i] + name[i+1:]
             test -= 1
 
@@ -55,11 +51,11 @@ def __write(file_dest, var):
         new_file.write(var)
 
 
-def bool_str(string: str):
-    if string.lower() in ['true', '1', 'правда', 'y', 'yes', 'да']:
+def bool_str(line: str):
+    if line.lower() in ['true', '1', 'правда', 'y', 'yes', 'да']:
         return True
 
-    elif string.lower() in ['false', '1', 'ложь', 'n', 'no', 'нет']:
+    elif line.lower() in ['false', '1', 'ложь', 'n', 'no', 'нет']:
         return False
 
     else:
@@ -74,8 +70,8 @@ def gen_str(test = None):
 
     for i in range(num):
         result += random.choice([
-                *sr.ascii_lowercase,
-                *sr.digits]
+                *string.ascii_lowercase,
+                *string.digits]
         )
     return result
 
