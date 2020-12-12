@@ -2,7 +2,8 @@
  
 ## Basic info
 Last release: 0.801
-This release: 0.852  
+This release: 0.853  
+
 Beta features: 
  - .event_parser
  - .app.start_polling,
@@ -11,3 +12,5 @@ Beta features:
  - .app.__pollingCycle,
  - .app.__polling
  - .objects.libraryModule
+ 
+ - tools expression type (package_expr, hidden, bool, workspace)
