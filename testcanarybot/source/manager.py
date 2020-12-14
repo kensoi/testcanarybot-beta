@@ -4,16 +4,18 @@ module_cover = """from testcanarybot.objects import libraryModule{package_handle
 class Main(libraryModule):
     async def start(self, tools):
         self.name = "{name}" # optional
-        self.version = 0.851 # optional
+        self.version = """ + str(supporting[-1]) + """ # optional
         self.description = \"\"\"
             {descr}\"\"\" # optional{package_events}
         
         {package_handler}{error_handler}
 """
+
 package_events = """
         self.packagetype = [
             events.message_new
         ]"""
+
 package_handler = """
     async def package_handler(self, tools, package):
         # tools: testcanarybot.tools

@@ -1,27 +1,45 @@
-import threading
 import asyncio
+import threading
+import traceback
+
+
 from .events import events
 from . import objects
 from .versions_list import static
 
-class event_parser(threading.Thread):
-    def __init__(self, library, event):
-        threading.Thread.__init__(self)
 
+class event_core(threading.Thread):
+    processing = False
+
+    def __init__(self, library, handler_id):
+        threading.Thread.__init__(self)
         self.thread_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.thread_loop)
+        self.daemon = True
+        self.handler_id = handler_id
 
         self.library = library
-        self.event = event
+        self.event = None
 
 
     def run(self):
-        if isinstance(self.event, dict):
-            if hasattr(events, self.event['type']):
-                event_type = getattr(events, self.event['type'])
+        self.setName(f"handler_{self.handler_id}")
+        self.library.tools.system_message(f"started ({self.getName()})", module = "message_handler")
+        while True:
+            if self.event: 
+                self.processing = True
+                self.parse_event(self.event)
+                self.event = None
+                self.processing = False
+
+
+    def parse_event(self, event):
+        if isinstance(event, dict):
+            if hasattr(events, event['type']):
+                event_type = getattr(events, event['type'])
 
                 if event_type == events.message_new:
-                    package = objects.message(**self.event['object']['message'])
+                    package = objects.message(**event['object']['message'])
                     package.items = []
 
                     if hasattr(package, 'action'): 
@@ -32,18 +50,18 @@ class event_parser(threading.Thread):
                         package.payload = json.loads(package.payload)
 
                     elif package.text != '': 
-                        package.items = self.parse_command(package.text)
+                        package.items, package.mentions = self.parse_command(package.text)
 
                     elif len(package.attachments) > 0: 
                         package.items.append(self.library.tools.getValue("ATTACHMENTS"))
                         
                     package.items.append(self.library.tools.getValue("ENDLINE"))
-                    if len(package.items) != 0 or not self.library.tools.getValue("ONLY_COMMANDS").value:
+                    if not self.library.tools.getValue("ONLY_COMMANDS").value:
                         self.parse_package(package)
 
                 else:
-                    package = objects.package(**self.event['object'])
-                    event_object = self.event['object']
+                    package = objects.package(**event['object'])
+                    event_object = event['object']
 
                     for key, value in event_object.items():
                         if key in _ohr.peer_id: 
@@ -51,49 +69,118 @@ class event_parser(threading.Thread):
 
                         if key in _ohr.from_id: 
                             package.from_id = value
-                    
-                    package.items.append(self.event)
+
                     package.items.append(self.library.tools.getValue("ENDLINE"))
                     package.type = event_type
                     package.__dict__.update(
                         event_object
                     )
 
-                    self.parse_package(package)
+                    self.parse_package(package)  
 
-        
+        elif issubclass(type(self.event), objects.Object):
+            package = self.event
+            package.items = []
+            if package.type == events.message_new:
+
+                if hasattr(package, 'action'): 
+                    package.items.append(self.library.tools.getValue("ACTION"))
+                
+                elif hasattr(package, 'payload'):
+                    package.items.append(self.library.tools.getValue("PAYLOAD"))
+                    package.payload = json.loads(package.payload)
+
+                elif package.text != '': 
+                    package.items, package.mentions = self.parse_command(package.text)
+
+                elif len(package.attachments) > 0: 
+                    package.items.append(self.library.tools.getValue("ATTACHMENTS"))
+                    
+                package.items.append(self.library.tools.getValue("ENDLINE"))
+                if not self.library.tools.getValue("ONLY_COMMANDS").value:
+                    self.parse_package(package)
+            else:
+                package.items.append(self.library.tools.getValue("ENDLINE"))
+                self.parse_package(package)
+
+
     def parse_command(self, messagetoreact):
-        response = []
+        response, mentions = [], []
         message = messagetoreact.split() 
 
         if len(message) > 1:
             if message[0] in [*self.library.tools.getValue("MENTIONS").value]:
                 message.pop(0)
-
-                for i in message:
-                    if i[0] == '[' and i[-1] == ']' and i.count('|') == 1:
-                        response.append(self.library.tools.parse_mention(i[1:-1]))
-
+                message_lenght = len(message)
+                i = 0
+                while i != message_lenght:
+                    if message[i][0] == '[' and message[i].count('|') == 1:
+                        if message[i].count(']') > 0:
+                            mention = self.library.tools.parse_mention(
+                                    message[i][message[i].rfind('[') + 1:message[i].find(']')]
+                                    )
+                            mentions.append(mention)
+                            response.append(
+                                mention
+                                )
+                        else:
+                            for j in range(i, message_lenght):
+                                if message[j].count(']') > 0:
+                                    last_string, message[j] = message[j][0:message[j].find(']')], message[j][message[j].find(']') + 1:]
+                                    mention = " ".join([*message[i:j], last_string])[1:]
+                                    mention = self.library.tools.parse_mention(
+                                            mention
+                                            )
+                                    response.append(mention)
+                                    mentions.append(mention)
+                                    response.append(message[j])
+                                    i = j
+                                    break
                     else:
-                        response.append(self.library.tools.parse_link(i))
+                        response.append(message[i])
+
+                    i += 1
 
             if len(response) != 0:
-                return response
+                return response, mentions
         
         if self.library.tools.getValue("ADD_MENTIONS").value:
-            for word in message:
-                if word.lower() in [*self.library.tools.getValue("MENTIONS").value, 
-                                    *self.library.tools.getValue("MENTION_NAME_CASES").value]: 
-                    response.append(self.library.tools.getValue("MENTION"))
+            message_lenght = len(message)
+            i = 0
+            ment_obj = self.library.tools.getValue("MENTION")
+            while i != message_lenght:
+                if message[i].lower() in [*self.library.tools.getValue("MENTIONS").value, 
+                                    *self.library.tools.getValue("MENTION_NAME_CASES").value] and len(response) == 0: 
+                    response = [ment_obj]
+
+                if message[i][0] == '[' and message[i].count('|') == 1:
+                    if message[i].count(']') > 0:
+                        mention = self.library.tools.parse_mention(
+                                message[i][message[i].rfind('[') + 1:message[i].find(']')]
+                                )
+                        mentions.append(mention)
+                    else:
+                        for j in range(i, message_lenght):
+                            if message[j].count(']') > 0:
+                                last_string, message[j] = message[j][0:message[j].find(']')], message[j][message[j].find(']') + 1:]
+                                mention = " ".join([*message[i:j], last_string])[1:]
+                                mention = self.library.tools.parse_mention(
+                                        mention
+                                        )
+                                mentions.append(mention)
+                                i = j
+                                break
+                    
+                i += 1
 
             if len(response) != 0:
-                return response
+                return response, mentions
 
         if not self.library.tools.getValue("ONLY_COMMANDS").value:
             response.append(self.library.tools.getValue("NOT_COMMAND"))
-            return response
+            return response, []
 
-        return []
+        return [], []
 
 
     def parse_package(self, event_package):
@@ -123,10 +210,13 @@ class event_parser(threading.Thread):
                                             (e, self.library.modules[e].name) for e in self.library.modules.keys() if e not in self.library.hidden_modules
                                         ]
 
+                                    elif event_package.items[1] == self.library.tools.getValue("LIBRARY_RELOAD"):
+                                        self.library.upload(isReload = True, loop = self.thread_loop)
+                                        event_package.items.append(self.library.tools.getValue("LIBRARY_SUCCESS"))
+
                                     elif event_package.items[1] in self.library.modules.keys():
                                         event_package.items.append(self.library.modules[event_package.items[1]].version)
                                         event_package.items.append(self.library.modules[event_package.items[1]].description)
-                                            
 
                                     else:
                                         event_package.items[1] = self.library.tools.getValue("LIBRARY_ERROR")
@@ -146,7 +236,7 @@ class event_parser(threading.Thread):
                 response += self.library.tools.getValue("MESSAGE_HANDLER_USER").value + '\n'
                 if self.library.tools.getValue("NOT_COMMAND") not in itemscopy and self.library.tools.ischecktype(itemscopy, objects.expression):
                     response += self.library.tools.getValue("MESSAGE_HANDLER_ITEMS").value + '\n'
-                    itemscopy = [i.value if isinstance(i, objects.expression) else i for i in itemscopy[:-1]]
+                    itemscopy = [str(i) for i in itemscopy[:-1]]
                 if event_package.text !='': response += self.library.tools.getValue("MESSAGE_HANDLER_IT").value + '\n'
                 
                 response = response.format(
@@ -154,7 +244,6 @@ class event_parser(threading.Thread):
                     from_id = event_package.from_id,
                     event_type = event_package.type.value,
                     items = itemscopy,
-                    text = event_package.text
+                    text = "\t" + event_package.text.replace("\n", "\n\t\t\t")
                 )
-                self.library.tools.system_message(response)
-
+                self.library.tools.system_message(response, module = "message_handler")

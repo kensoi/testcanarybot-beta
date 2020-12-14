@@ -1,4 +1,4 @@
-from .thread_parser import event_parser
+from .thread_parser import event_core
 from .versions_list import supporting
 from .library import library, api, init_async
 from . import exceptions
@@ -15,6 +15,7 @@ class multiloop_session:
     wrapper over about aiohttp.request() to avoid errors about loops in threads
     """
     methods = ['post', 'get', 'put', 'delete', 'head']
+
     def __init__(self, headers = None):
         self.headers = headers
 
@@ -29,6 +30,10 @@ class multiloop_session:
 
                     else:
                         h = self.headers
+                        
+                elif 'headers' in kwargs:
+                    h = kwargs.pop('headers')
+
                 else:
                     h = {}
 
@@ -53,7 +58,9 @@ class app:
     __ts = None
     __key = None
     
-    timeout = aiohttp.ClientTimeout(35)
+    timeout = aiohttp.ClientTimeout(15)
+    core_count = 5
+    __threadlists = []
 
     def __init__(self, token: str, group_id: int, api_version='5.126'):
         """
@@ -74,19 +81,19 @@ class app:
 
         self.api = api(self.http, self.method)
         self.__library = library(supporting, group_id, self.api, self.http)
+        self.library = self.__library
         
         init_async(self.__update_longpoll_server(update_ts=True))
         
         atexit.register(self.__close)
 
         text = self.__library.tools.getValue('SESSION_START').value
-        print(f"\n@{self.__library.tools.group_address}: {text}")
-        print(f"\n{self.__library.tools.getDateTime()} @{self.__library.tools.group_address}: {text}", file=self.__library.tools.log)
+        print(f"\n@{self.__library.tools.group_address}: {text}\n")
+        print(f"\n{self.__library.tools.getDateTime()} @{self.__library.tools.group_address}: {text}\n", file=self.__library.tools.log)
 
 
     def __close(self):
-        self.__library.tools.module = "http"
-        self.__library.tools.system_message(self.__library.tools.getValue("SESSION_CLOSE").value)
+        self.__library.tools.system_message(self.__library.tools.getValue("SESSION_CLOSE").value, module = "http")
         if not self.__library.tools.log.closed:
             self.__library.tools.log.close()
         
@@ -178,6 +185,11 @@ class app:
                 self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
 
         self.__library.tools.update_list()
+
+        for i in range(self.core_count):
+            thread = event_core(self.library, i)
+            thread.start()
+            self.__threadlists.append(thread)
     
 
     def start_polling(self):
@@ -187,9 +199,8 @@ class app:
         """
 
         self.setup()
-        self.__library.tools.module = 'longpoll'
         self.__library.tools.system_message(
-            self.__library.tools.getValue("SESSION_START_POLLING").value)
+            self.__library.tools.getValue("SESSION_START_POLLING").value, module = 'longpoll', newline=True)
         asyncio.get_event_loop().run_until_complete(
             self.__pollingCycle())
 
@@ -202,12 +213,12 @@ class app:
 
         self.setup()
         self.__library.tools.system_message(
-            self.__library.tools.getValue("SESSION_CHECK_SERVER").value)
+            self.__library.tools.getValue("SESSION_CHECK_SERVER").value, module = 'longpoll', newline=True)
         while times != 0:
             times -= 1
             init_async(self.__polling(), loop=main_loop)
         
-        self.__library.tools.system_message(self.__library.tools.getValue("SESSION_LISTEN_CLOSE").value)
+        self.__library.tools.system_message(self.__library.tools.getValue("SESSION_LISTEN_CLOSE").value, module = 'longpoll')
 
 
     async def __update_longpoll_server(self, update_ts=True):
@@ -228,8 +239,7 @@ class app:
         }
         response = await self.http.get(
             self.__url,
-            params = values,
-            timeout = self.timeout
+            params = values
         )
         response = await response.json()
 
@@ -261,9 +271,14 @@ class app:
 
         eventslist = await self.__check()
 
+        # метод с ранее установленными потоками
         for event in eventslist:
-            my_thread = event_parser(self.__library, event)
-            my_thread.start()
+            for thread in self.__threadlists:
+                if thread.processing:
+                    continue
+                else:
+                    thread.event = event
+                    break
 
 
     def test_run(self, event):
@@ -271,11 +286,15 @@ class app:
         """
         Run test for library.
         """
-        my_thread = event_parser(self.__library, event)
-        my_thread.start()
+        for thread in self.__threadlists:
+            if thread.processing:
+                continue
+            else:
+                thread.event = event
+                break
 
 
-    def create_testevent(self, *args, **kwargs):
+    def create_testevent(self, **kwargs):
         kwargs = kwargs.copy()
         from .events.events import message_new
         

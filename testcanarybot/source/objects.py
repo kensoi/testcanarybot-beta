@@ -4,12 +4,16 @@ from .versions_list import static
 
 
 class mention:
-    __slots__ = ('id') 
-    def __init__(self, page_id):
+    __slots__ = ('id', 'call') 
+    def __init__(self, page_id, mention = ""):
         self.id = page_id
+        self.call = mention
 
     def __int__(self):
-        return self.id    
+        return self.id 
+
+    def __str__(self):
+        return self.call    
     
 
 class Object:

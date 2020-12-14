@@ -127,70 +127,71 @@ class library:
         self.tools = tools(group_id, api, http)
 
 
-    def upload(self):
+    def upload(self, isReload = False, loop = asyncio.get_event_loop()):
+        self.modules = {}
         if 'library' in os.listdir(os.getcwd()):
-            self.tools.module = "library.uploader"
-            self.tools.system_message(self.tools.getValue("LIBRARY_UPLOADER_GET"))
+            self.tools.system_message(self.tools.getValue("LIBRARY_UPLOADER_GET"), module = "library.uploader")
             
             listdir = os.listdir(os.getcwd() + '\\library\\')
             listdir.remove("__pycache__")
             if len(listdir) == 0:
                 raise exceptions.LibraryError(
                     self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
-                
+            
             init_async(
-                asyncio.wait(
-                    [
-                        asyncio.get_event_loop().create_task(self.moduleload(module)) for module in listdir
-                    ]
+                    asyncio.wait(
+                        [
+                            loop.create_task(self.moduleload(module, isReload)) for module in listdir
+                        ]
+                    ), loop = loop
                 )
-            )
             self.tools.system_message(
                 "Supporting event types: {event_types}".format(
-                    event_types = "\n".join(["", *["\t\t" + str(i) for i in self.event_supports.keys()]])
-                )
-            )
+                    event_types = "\n".join(["", *["\t\t" + str(i) for i in self.event_supports.keys()], ""])
+                ), module = "library.uploader", newline = True)
         
-        
-    async def moduleload(self, module_name):
+    async def moduleload(self, module_name, isReload):
         module = importlib.import_module("library." + module_name[:-3] if module_name.endswith('.py') else module_name + 'main')
+        
+        if isReload:
+            module = importlib.reload(module)
+            
         if module_name[-3:] == '.py': module_name = module_name[:-3]
         if hasattr(module, 'Main'):
             moduleObj = module.Main()
-            if issubclass(type(moduleObj), objects.libraryModule) or self.needattr & set(dir(moduleObj)) == self.needattr:
-                if hasattr(moduleObj, "start"):
-                    await moduleObj.start(self.tools)
-
-            else:
+            if hasattr(moduleObj, "start"):
+                await moduleObj.start(self.tools)
+                
+            if not(issubclass(type(moduleObj), objects.libraryModule) or self.needattr & set(dir(moduleObj)) == self.needattr):
                 return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
-                    module = module_name))
+                    module = module_name), module = "library.uploader")
 
 
         else:
             return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
-                module = module_name))
+                module = module_name), module = "library.uploader")
+        if not isReload:
+            if hasattr(moduleObj, 'error_handler'): self.error_handlers.append(module_name)
+            if hasattr(moduleObj, 'package_handler'):
+                if hasattr(moduleObj, 'packagetype') and len(moduleObj.packagetype) > 0:
+                    for package in moduleObj.packagetype:
+                        if package not in self.event_supports: self.event_supports[package] = list()
+                        self.event_supports[package].append(module_name)
 
-        if hasattr(moduleObj, 'error_handler'): self.error_handlers.append(module_name)
-        if hasattr(moduleObj, 'package_handler'):
-            if hasattr(moduleObj, 'packagetype') and len(moduleObj.packagetype) > 0:
-                for package in moduleObj.packagetype:
-                    if package not in self.event_supports: self.event_supports[package] = list()
-                    self.event_supports[package].append(module_name)
+                    self.package_handlers.append(module_name)
 
-                self.package_handlers.append(module_name)
-
-            else:
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_PACKAGETYPE").value.format(
-                    module = module_name))
+                else:
+                    return self.tools.system_message(self.tools.getValue("MODULE_FAILED_PACKAGETYPE").value.format(
+                        module = module_name), module = "library.uploader")
 
         if module_name in [*self.error_handlers, *self.package_handlers]:
             self.modules[module_name] = moduleObj
             return self.tools.system_message(self.tools.getValue("MODULE_INIT").value.format(
-                module = module_name))
+                module = module_name), module = "library.uploader")
 
         else:
             return self.tools.system_message(self.tools.getValue("MODULE_FAILED_HANDLERS").value.format(
-                module = module_name))
+                module = module_name), module = "library.uploader")
 
 
     def getCompactible(self, packagetype):
@@ -201,7 +202,7 @@ class library:
 
 
 class tools:
-    module = "system"
+    __module = "system_message"
     log = _assets()("log.txt", "a+", encoding="utf-8")
     __db = databases(("system", "system.db"))
 
@@ -256,14 +257,20 @@ class tools:
         return 1
 
 
-    def system_message(self, textToPrint:str):
-        response = f'@{self.group_address}.{self.module}: {textToPrint}'
+    def system_message(self, *args, textToPrint = None, module = None, newline = False):
+        if not module: module = self.__module
+        if not textToPrint: textToPrint = " ".join([str(i) for i in list(args)])
+        
+        response = f'@{self.group_address}.{module}: {textToPrint}'
 
         if self.log.closed:
             self.log = assets("log.txt", "a+", encoding="utf-8")
-        
-        print(response)
-        print(f"{self.getDateTime()} {response}", file=self.log)
+
+        newline_res = "\n" if newline else ""
+        print(newline_res + response)
+
+        response = f'{self.getDateTime()} {response}'
+        print(newline_res + response, file=self.log)
 
         self.log.flush()
 
@@ -400,13 +407,13 @@ class tools:
 
 
     def parse_mention(self, mention):
-        response = mention.replace(mention[mention.find('|'):], '')
+        page_id, call = mention[0: mention.find('|')], mention[mention.find('|') + 1:]
 
-        response = response.replace('id', '')
-        response = response.replace('club', '-')
-        response = response.replace('public', '-')
+        page_id = page_id.replace('id', '')
+        page_id = page_id.replace('club', '-')
+        page_id = page_id.replace('public', '-')
             
-        return objects.mention(int(response))
+        return objects.mention(int(page_id), call)
 
 
     def parse_link(self, link):

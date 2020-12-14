@@ -1,3 +1,4 @@
+from .versions_list import supporting
 class cover_expressions:
     list = []
     types = {
@@ -39,12 +40,12 @@ def setExpression(name, value: str = "", exp_type = "object"):
 
 expressions = cover_expressions()
 
-setExpression("LOGGER_START", ['TESTCANARYBOT 0.8', 'KENSOI.GITHUB.IO 2020', ''], "log")
+setExpression("LOGGER_START", [f'TESTCANARYBOT {supporting[-1]}', 'KENSOI.GITHUB.IO 2020', ''], "log")
 setExpression("SESSION_START", "started", "log")
 setExpression("SESSION_LONGPOLL_ERROR", "have not been connected", "log")
 setExpression("SESSION_LIBRARY_ERROR", "library directory is broken", "log")
 setExpression("SESSION_CLOSE", "session closed", "log")
-setExpression("SESSION_START_POLLING", "polling is started", "log")
+setExpression("SESSION_START_POLLING", "polling is started \n", "log")
 setExpression("SESSION_CLOSE_POLLING", "polling is finished", "log")
 
 setExpression("MESSAGE_HANDLER_ITEMS", "\t\titems: {items}", "log")
@@ -65,11 +66,13 @@ setExpression("PARSER", exp_type = "package_expr")
 setExpression("LIBRARY", exp_type = "package_expr")
 setExpression("LIBRARY_ERROR", exp_type = "package_expr")
 setExpression("LIBRARY_NOSELECT", exp_type = "package_expr")
+setExpression("LIBRARY_RELOAD", exp_type = "package_expr")
+setExpression("LIBRARY_SUCCESS", exp_type = "package_expr")
 
 setExpression("LIBRARY_RESPONSE_ERROR", exp_type = "message_cover")
 setExpression("LIBRARY_RESPONSE_LIST", exp_type = "message_cover")
 setExpression("LIBRARY_RESPONSE_LIST_LINE", "{listitem} {codename} - {name}", "message_cover")
-setExpression("LISTITEM", "\u2022", exp_type = "const")
+setExpression("LISTITEM", "💎", exp_type = "const") # "\u2022"
 setExpression("LIBRARY_RESPONSE_DESCR", "{name}: \n{descr} ")
 
 setExpression("BEEPA_PAPASA", ":::NYASHKA:NYASHKA:::", "hidden")
