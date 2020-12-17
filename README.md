@@ -2,7 +2,7 @@
  
 ## Basic info
 Last release: 0.801
-This release: 0.855
+This release: 0.856
 
 Beta features: 
  - .event_parser

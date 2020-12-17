@@ -1,4 +1,7 @@
-class LongpollError(Exception):
+class MethodError(Exception):
+    pass
+
+class LongpollError(MethodError):
     pass
 
 class LoopStateError(Exception):
@@ -7,8 +10,5 @@ class LoopStateError(Exception):
 class LibraryError(Exception):
     pass
 
-class DBError(Exception):
-    pass
-
-class MethodError(Exception):
+class DBError(LibraryError):
     pass

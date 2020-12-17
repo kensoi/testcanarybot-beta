@@ -11,7 +11,7 @@ class cover_expressions:
     }
 
     def __getattr__(self, name:str):
-        return expression(f'UNKNOWN ({name.upper()})', "empty")
+        return expression(f'UNKNOWN ({name.upper()})', "hidden")
 
     def parse(self, name):
         pass
@@ -27,15 +27,17 @@ class expression:
         return self.value
 
 
-def setExpression(name, value: str = "", exp_type = "object"):
+def setExpression(name, value: str = "", exp_type = "message_cover"):
     global expressions
     if value == "": value = f":::{name}:::"
-        
-    setattr(expressions, name, expression(value, exp_type))
-    expressions.list.append(name)
-
     if exp_type in expressions.types.keys():
-        expressions.types[exp_type].append(name)
+        setattr(expressions, name, expression(value, exp_type))
+        expressions.list.append(name)
+
+        if exp_type in expressions.types.keys():
+            expressions.types[exp_type].append(name)
+    else:
+        raise TypeError("Incorrect exp_type")
 
 
 expressions = cover_expressions()
@@ -72,7 +74,7 @@ setExpression("LIBRARY_SUCCESS", exp_type = "package_expr")
 setExpression("LIBRARY_RESPONSE_ERROR", exp_type = "message_cover")
 setExpression("LIBRARY_RESPONSE_LIST", exp_type = "message_cover")
 setExpression("LIBRARY_RESPONSE_LIST_LINE", "{listitem} {codename} - {name}", "message_cover")
-setExpression("LISTITEM", "💎", exp_type = "const") # "\u2022"
+setExpression("LISTITEM", "\u2022", exp_type = "const")
 setExpression("LIBRARY_RESPONSE_DESCR", "{name}: \n{descr} ")
 
 setExpression("BEEPA_PAPASA", ":::NYASHKA:NYASHKA:::", "hidden")

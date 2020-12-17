@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="testcanarybot",
-    version="0.802",
+    version="0.900",
     author="andprokofieff",
     author_email="prokofieff.help@gmail.com",
     description="VKontakte asynchronous bot framework like Django",
