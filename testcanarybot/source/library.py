@@ -210,13 +210,10 @@ class handler(threading.Thread):
                 itemscopy = event_package.items.copy()
                 modules = [asyncio.ensure_future(self.library.modules[i].package_handler(self.library.tools, event_package), loop = self.thread_loop) for i in self.library.event_supports[event_package.type]]
                         
-                reaction = filter(
-                    lambda i: i != None, 
-                    self.thread_loop.run_until_complete(asyncio.gather(*modules)))
-                reaction = list(reaction)
+                reaction = [i for i in self.thread_loop.run_until_complete(asyncio.gather(*modules)) if i != None]
 
                 if len(self.library.error_handlers) > 0:
-                    if len(reaction) == 0:
+                    if len(reaction) == 0 and len(event_package.items) > 1:
                         reaction.append([self.library.tools.getValue("NOREACT")])
                         
                     for i in reaction:

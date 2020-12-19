@@ -5,7 +5,7 @@ class static:
 
 main = [0.801, 0.802]
 beta_versions = {
-    0.9: [0.85 + 0.001 * i for i in range(1, 8)]
+    0.9: [0.85 + 0.001 * i for i in range(1, 9)]
 }
 
 beta = []
@@ -16,4 +16,4 @@ supporting = [*main, *beta]
 supporting.sort()
 supporting = [static, *supporting]
 
-current = 0.857
+current = 0.858
