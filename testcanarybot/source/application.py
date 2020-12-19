@@ -68,13 +68,13 @@ class app:
     __ts = None
     __key = None
 
-    def __init__(self, token: str, group_id: int, api_version='5.126', session = multiloop_session()):
+    def __init__(self, token: str, group_id: int, api_version='5.126', session = multiloop_session):
         """
         token: str - token you took from VK Settings: https://vk.com/{yourgroupaddress}?act=tokens
         group_id: int - identificator of your group where you want to install tcb project
         api_version: str - VK API version
         """
-        self.http = session(headers = headers)
+        self.http = session(headers = self.headers)
         
         for filename in ['assets', 'library']:
             if filename in os.listdir(os.getcwd()): continue

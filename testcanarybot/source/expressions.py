@@ -27,17 +27,51 @@ class expression:
         return self.value
 
 
-def setExpression(name, value: str = "", exp_type = "message_cover"):
+class Pages:
+    def __init__(self, obj:list, page_lenght: int = 5, listitem: str = ""):
+        self.listitem = listitem
+        self.source = obj
+        self.lenght = len(obj)
+        self.page_lenght = page_lenght
+
+        self.pages_count, mod = divmod(self.lenght, self.page_lenght)
+        self.pages_count += 1 if mod > 0 else 0
+
+
+    def get_page(self, page: int):
+        if page > self.pages_count or page < 0: raise ValueError("Incorrect page number")
+
+        page_result = self.source[
+            page * self.page_lenght:min(self.lenght, (page + 1) * self.page_lenght)
+            ]
+        
+        if self.listitem != str():
+            page_result = [f"{self.listitem} {str(i)}" for i in page_result]
+
+        return "\n".join(page_result)
+
+        
+
+
+def setExpression(name, value: str = "", exp_type = "package_expr"):
     global expressions
     if value == "": value = f":::{name}:::"
-    if exp_type in expressions.types.keys():
-        setattr(expressions, name, expression(value, exp_type))
-        expressions.list.append(name)
 
+    if name in expressions.list:
+        if name not in expressions.types['hidden']: 
+            getattr(expressions, name).value = value
+
+        else:
+            raise TypeError("Incorrect expression")
+
+    else:
         if exp_type in expressions.types.keys():
             expressions.types[exp_type].append(name)
-    else:
-        raise TypeError("Incorrect exp_type")
+            setattr(expressions, name, expression(value, exp_type))
+            expressions.list.append(name)
+
+        else:
+            raise TypeError("Incorrect exp_type")
 
 
 expressions = cover_expressions()
@@ -56,25 +90,25 @@ setExpression("MESSAGE_HANDLER_CHAT", "\t\tpeer id: {peer_id}", "log")
 setExpression("MESSAGE_HANDLER_USER", "\t\tfrom id: {from_id}", "log")
 setExpression("MESSAGE_HANDLER_IT", "\t\ttext: {text}", "log")
 
-setExpression("ENDLINE", exp_type = "package_expr")
+setExpression("ENDLINE", exp_type = "workspace")
 
-setExpression("MENTION", exp_type = "package_expr")
-setExpression("ACTION", exp_type = "package_expr")
-setExpression("PAYLOAD", exp_type = "package_expr")
-setExpression("ATTACHMENTS", exp_type = "package_expr")
+setExpression("MENTION", exp_type = "workspace")
+setExpression("ACTION", exp_type = "workspace")
+setExpression("PAYLOAD", exp_type = "workspace")
+setExpression("ATTACHMENTS", exp_type = "workspace")
 
-setExpression("NOREACT", exp_type = "package_expr")
-setExpression("PARSER", exp_type = "package_expr")
-setExpression("LIBRARY", exp_type = "package_expr")
-setExpression("LIBRARY_ERROR", exp_type = "package_expr")
-setExpression("LIBRARY_NOSELECT", exp_type = "package_expr")
-setExpression("LIBRARY_RELOAD", exp_type = "package_expr")
-setExpression("LIBRARY_SUCCESS", exp_type = "package_expr")
+setExpression("NOREACT", exp_type = "workspace")
+setExpression("PARSER", exp_type = "workspace")
+setExpression("LIBRARY", exp_type = "workspace")
+setExpression("LIBRARY_ERROR", exp_type = "workspace")
+setExpression("LIBRARY_NOSELECT", exp_type = "workspace")
+setExpression("LIBRARY_RELOAD", exp_type = "workspace")
+setExpression("LIBRARY_SUCCESS", exp_type = "workspace")
 
 setExpression("LIBRARY_RESPONSE_ERROR", exp_type = "message_cover")
 setExpression("LIBRARY_RESPONSE_LIST", exp_type = "message_cover")
 setExpression("LIBRARY_RESPONSE_LIST_LINE", "{listitem} {codename} - {name}", "message_cover")
-setExpression("LISTITEM", "\u2022", exp_type = "const")
+setExpression("LISTITEM", "\u2022", exp_type = "package_expr")
 setExpression("LIBRARY_RESPONSE_DESCR", "{name}: \n{descr} ")
 
 setExpression("BEEPA_PAPASA", ":::NYASHKA:NYASHKA:::", "hidden")
@@ -94,6 +128,7 @@ setExpression("NOT_COMMAND", exp_type = "package_expr")
 
 
 setExpression("ONLY_COMMANDS", True, "bool")
+setExpression("ADD_MENTIONS", False, "bool")
 
 class _ohr:
     from_id = ['deleter_id', 'liker_id', 'user_id']
