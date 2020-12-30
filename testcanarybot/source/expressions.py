@@ -129,6 +129,7 @@ setExpression("NOT_COMMAND", exp_type = "package_expr")
 
 setExpression("ONLY_COMMANDS", True, "bool")
 setExpression("ADD_MENTIONS", False, "bool")
+setExpression("DEBUG_MESSAGES", False, "bool")
 
 class _ohr:
     from_id = ['deleter_id', 'liker_id', 'user_id']

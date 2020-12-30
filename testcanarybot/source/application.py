@@ -5,53 +5,12 @@ from .library import init_async
 from .library import library
 from . import exceptions
 
-import aiohttp
+from .objects import multiloop_session, package, Object
+
 import asyncio
 import atexit
 import os
 import time
-
-
-class multiloop_session:
-    """
-    wrapper over about aiohttp.request() to avoid errors about loops in threads
-    headers: dict()
-    """
-    methods = ['post', 'get', 'put', 'delete', 'head']
-
-    def __init__(self, headers = None):
-        self.headers = headers
-
-    
-    def available_methods(self):
-        return self.methods
-
-
-    def __getattr__(self, name):
-        if name in self.methods:
-            async def request(*args, **kwargs):
-                if self.headers:
-                    if 'headers' in kwargs:
-                        h = kwargs.pop('headers')
-                        h.update(self.headers)
-
-                    else:
-                        h = self.headers
-                        
-                elif 'headers' in kwargs:
-                    h = kwargs.pop('headers')
-
-                else:
-                    h = {}
-
-                async with aiohttp.request(name.upper(), *args, **kwargs, headers = h) as resp:
-                    await resp.json()
-                    return resp
-
-            return request  
-
-        else:
-            AttributeError(f"{name} not found")
 
 
 class app:  
@@ -67,8 +26,9 @@ class app:
     __url = ":::"
     __ts = None
     __key = None
+    __debug = False
 
-    def __init__(self, token: str, group_id: int, api_version='5.126', session = multiloop_session):
+    def __init__(self, access_token: str, group_id: int, api_version='5.126', service_token: str = "", session = multiloop_session):
         """
         token: str - token you took from VK Settings: https://vk.com/{yourgroupaddress}?act=tokens
         group_id: int - identificator of your group where you want to install tcb project
@@ -81,7 +41,9 @@ class app:
             os.mkdir(os.getcwd() + '\\' + filename)
             
 
-        self.__token = token
+        self.__token = access_token
+        self.__loop = asyncio.get_event_loop()
+        self.__service = service_token
         self.__group_id = group_id
         self.__av = api_version
 
@@ -113,7 +75,16 @@ class app:
 
         if 'group_id' in data: data['group_id'] = self.__group_id
         data['v'] = self.__av
-        data['access_token'] = self.__token
+
+        access_type = values.get('type', "bot")
+
+        if access_type in ["bot", "service"]:
+            if access_type == "service" and self.__service != "":
+                data['access_token'] = self.__service
+            else:
+                data['access_token'] = self.__token
+        else: 
+            raise ValueError("Incorrect method type")
 
 
         if delay > 0: await asyncio.sleep(delay)
@@ -192,6 +163,7 @@ class app:
                 self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
 
         self.__library.tools.update_list()
+        self.__debug = self.getTools().getValue("DEBUG_MESSAGES")
 
         for i in range(self.core_count):
             thread = handler(self.__library, i)
@@ -207,7 +179,7 @@ class app:
         self.setup()
         self.__library.tools.system_message(
             self.__library.tools.getValue("SESSION_START_POLLING").value, module = 'longpoll', newline=True)
-        asyncio.get_event_loop().run_until_complete(
+        self.__loop.run_until_complete(
             self.__pollingCycle())
 
 
@@ -233,6 +205,11 @@ class app:
 
         if update_ts: self.__ts = response['ts']
         self.__key, self.__url = response['key'], response['server']
+        if self.__debug:
+            self.getTools().system_message( 
+                module="longpoll",
+                textToPrint = "Longpoll server updated"
+                )
 
 
     async def __check(self):
@@ -269,11 +246,39 @@ class app:
 
 
     async def __polling(self):
-        for event in await self.__check(): 
-            for thread in self.__handlerlists:
-                if thread.processing: continue
-                thread.event = event
-                break
+        for event in await self.__check():
+            self.__loop.create_task(self.__parse(event))
+    
+    
+    async def __parse(self, event, thread = None):
+        while not thread:
+            await asyncio.sleep(0)
+            thread = self.getThreads()
+
+        if event['type'] == 'message_new':
+            package_res = package(**event['object']['message'])
+            package_res.params.client_info = Object(**event['object']['client_info'])
+            package_res.params.from_chat = package_res.peer_id > 2000000000
+
+
+        else:
+            package_res = package(**event['object'])
+
+            for key, value in event['object'].items():
+                if key in self.getTools()._ohr.peer_id: package_res.peer_id = value
+                if key in self.getTools()._ohr.from_id: package_res.from_id = value
+
+        package_res.event_id = event['event_id']
+        package_res.type = event['type']
+        package_res.items = []
+        
+        thread.package = package_res
+
+        
+    def getThreads(self):
+        for thread in self.__handlerlists:
+            if thread.processing: continue
+            return thread
 
 
     def test_parse(self, event):
