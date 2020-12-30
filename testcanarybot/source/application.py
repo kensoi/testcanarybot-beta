@@ -28,7 +28,7 @@ class app:
     __key = None
     __debug = False
 
-    def __init__(self, access_token: str, group_id: int, api_version='5.126', service_token: str = "", session = multiloop_session):
+    def __init__(self, access_token: str, group_id: int, api_version='5.126', service_token: str = "", core_count = 5, session = multiloop_session):
         """
         token: str - token you took from VK Settings: https://vk.com/{yourgroupaddress}?act=tokens
         group_id: int - identificator of your group where you want to install tcb project
@@ -46,6 +46,7 @@ class app:
         self.__service = service_token
         self.__group_id = group_id
         self.__av = api_version
+        self.core_count = core_count
 
         self.api = api(self.http, self.method)
         self.__library = library(supporting, group_id, self.api, self.http)

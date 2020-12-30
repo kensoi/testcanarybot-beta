@@ -6,13 +6,11 @@ import random
 from .source.manager import *
 
 parser = argparse.ArgumentParser(description='manager for testcanarybot')
-parser.add_argument("-c", dest="create_module", action = 'store_true', help='create a testcanarybot 0.7 module')
+parser.add_argument("-c", dest="create_module", action = 'store_true', help='create a testcanarybot 1.0 module')
 
-parser.add_argument("--name", type=str, default='', help='create module in a folder')
-parser.add_argument("-m", dest="manually", action = 'store_true', help='write details manually')
-parser.add_argument("-f", dest="folder", action = 'store_true', help='create module in a folder')
-parser.add_argument("-ph", dest="package_handler", action = 'store_true', help='parser for package')
-parser.add_argument("-eh", dest="error_handler", action = 'store_true', help='parser for errors')
+parser.add_argument("--name", type = str, default = '', help='module name on folder')
+parser.add_argument("-m", dest = "manually", action = 'store_true', help='write details manually')
+parser.add_argument("-f", dest = "folder", action = 'store_true', help='create module in a folder')
 
 args = parser.parse_args()
 
@@ -85,104 +83,22 @@ if args.create_module:
     if args.manually:
         print(f"Hello! it's a manager for testcanarybot!")
         name = input("Enter a name for your plugin: ") if args.name == '' else args.name
-
-        print("Enter a description for your plugin: ")
         codename = parsename(name)
-        descr, descr_line = str(), ":::TESTCANARYBOT:DESCR_LINE:::"
 
-        if args.folder:
-            dest = f'\\library\\{codename}\\main.py'
-        
-        else:
-            dest = f'\\library\\{codename}.py'
+        ans = input("Create module in a folder? [y/n] \n>> ")
+        ans = bool_str(ans)
 
-        while descr_line != "":
-            descr_line = input("\t")
-            descr += descr_line
-
-            if descr_line != "":
-                descr += '\n' +  " " * 12
-
-        if descr == '': descr = 'Look at this string, you can use it like a password: ' + gen_str() + '\n' +  " " * 12
-
-        if args.folder:
+        if ans:
             dest = dest.format(
                 codename = codename,
                 folder = '\\main'
                 )
-        
-        else:
-            ans = input("Create module in a folder? [y/n] \n>> ")
-            ans = bool_str(ans)
-
-            if ans:
-                dest = dest.format(
-                    codename = codename,
-                    folder = '\\main'
-                    )
-
-            else:
-                dest = dest.format(
-                    codename = codename,
-                    folder = ''
-                    )
-
-        if args.package_handler:
-            render = render.format(
-                name = '{name}',
-                descr = '{descr}',
-                package_events = package_events, 
-                package_handler = package_handler,
-                package_handler_import = package_handler_import,
-                error_handler = "{error_handler}"
-                )
 
         else:
-            ans = input("Create a package_handler in a module? [y/n] \n>> ")
-            ans = bool_str(ans)
-
-            if ans:
-                render = render.format(
-                    name = '{name}',
-                    descr = '{descr}',
-                    package_events = package_events, 
-                    package_handler = package_handler,
-                    package_handler_import = package_handler_import,
-                    error_handler = "{error_handler}"
+            dest = dest.format(
+                codename = codename,
+                folder = ''
                     )
-            else:
-                render = render.format(
-                    name = '{name}',
-                    descr = '{descr}',
-                    package_events = "", 
-                    package_handler = "",
-                    package_handler_import = "",
-                    error_handler = "{error_handler}"
-                    )
-
-        if args.error_handler:
-            render = render.format(
-                    name = '{name}',
-                    descr = '{descr}',
-                    error_handler = error_handler
-                    )
-
-        else:
-            ans = input("Create a package_handler in a module? [y/n] \n>> ")
-            ans = bool_str(ans)
-            if ans:
-                render = render.format(
-                    name = '{name}',
-                    descr = '{descr}',
-                    error_handler = error_handler
-                    )
-            else:
-                render = render.format(
-                    name = '{name}',
-                    descr = '{descr}',
-                    error_handler = "{error_handler}"
-                    )
-
 
     else:
         name =  "module" + gen_str() if args.name == '' else args.name
@@ -201,44 +117,6 @@ if args.create_module:
                 folder = ''
                 )
 
-        if args.package_handler:
-            render = render.format(
-                name = '{name}',
-                descr = '{descr}',
-                package_events = package_events, 
-                package_handler = package_handler,
-                package_handler_import = package_handler_import,
-                error_handler = "{error_handler}"
-                )
-
-        else:
-            render = render.format(
-                name = '{name}',
-                descr = '{descr}',
-                package_events = "", 
-                package_handler = "",
-                package_handler_import = "",
-                error_handler = "{error_handler}"
-                )
-
-        if args.error_handler:
-            render = render.format(
-                name = '{name}',
-                descr = '{descr}',
-                error_handler = error_handler
-                )
-
-        else:
-            render = render.format(
-                name = '{name}',
-                descr = '{descr}',
-                error_handler = ""
-                )  
-
-    render = render.replace("{name}", name)
-    render = render.replace("{descr}", descr)
-
-    test = os.getcwd() + dest
-    __write(test, render)
+    __write(os.getcwd() + dest, render)
         
     print(f"Executed! [{test}]")     

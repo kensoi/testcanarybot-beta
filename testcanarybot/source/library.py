@@ -46,67 +46,77 @@ class handler(threading.Thread):
     def run(self):
         self.setName(f"handler_{self.handler_id}")
         self.library.tools.system_message(f"{self.getName()} is started", module = "package_handler")
-        
+
         self.only_commands = self.library.tools.getValue("ONLY_COMMANDS").value
         self.add_mentions = self.library.tools.getValue("ADD_MENTIONS").value
         self.mentions = self.library.tools.getValue("MENTIONS").value
 
         self.thread_loop = asyncio.new_event_loop()
+        self.thread_loop.create_task(self.main_loop())
         asyncio.set_event_loop(self.thread_loop)
 
+        self.thread_loop.run_forever()
+
+
+    async def main_loop(self):
         while True:
+            await asyncio.sleep(0)
+
             if self.package:
                 self.processing = True
 
                 if hasattr(events, self.package.type):
                     self.package.type = getattr(events, self.package.type)
                     if self.package.type in self.library.event_supports.keys():
-
-                        self.resolver()
+                        self.thread_loop.create_task(self.resolver(self.package))
 
                 self.package = None
                 self.processing = False
 
 
-    def resolver(self) -> None:
-        if self.package.type == events.message_new:
-            if hasattr(self.package, 'action'): 
-                self.package.params.action = True
+    async def resolver(self, package):
+        if package.type == events.message_new:
+            await asyncio.sleep(0)
+            if hasattr(package, 'action'): 
+                package.params.action = True
 
-            elif hasattr(self.package, 'payload'): 
-                self.package.params.payload = True
-                self.package.payload = json.loads(self.package.params)
+            elif hasattr(package, 'payload'): 
+                package.params.payload = True
+                package.payload = json.loads(package.params)
             
-            elif self.package.text != '':
-                message = self.package.text.split()
+            elif package.text != '':
+                message = package.text.split()
                 message[0] = message[0][:-1] if message[0][-1] == ',' else message[0]
                 if message[0] in self.mentions:
                     if len(message) > 1:
                         message.pop(0)
-                        self.package.params.command = True
-                self.findMentions(message)
+                        package.params.command = True
+                package = await self.findMentions(package, message)
 
             elif len(package.attachments) > 0: 
-                self.package.params.attachments = True
+                package.params.attachments = True
 
-            self.package.params.command = len(self.package.items) > 0
+            package.params.command = len(package.items) > 0
 
-            if not self.only_commands or self.package.params.command: 
-                self.handler()
+            if not self.only_commands or package.params.command: 
+                await self.handler(package)
             
         else:
-            self.handler()
+            await self.handler(package)
 
 
-    def findMentions(self, message):
+    async def findMentions(self, package, message):
         for count in range(len(message)):
+
+            await asyncio.sleep(0)
+
             if message[count][0] == '[' and message[count].count('|') == 1:
                 if message[count].count(']') > 0:
                     mention = self.library.tools.parse_mention(
                             message[count][message[count].rfind('[') + 1:message[count].find(']')]
                             )
-                    self.package.params.mentions.append(mention)
-                    self.package.items.append(
+                    package.params.mentions.append(mention)
+                    package.items.append(
                         mention
                         )
                 else:
@@ -114,23 +124,26 @@ class handler(threading.Thread):
                         if message[j].count(']') > 0:
                             last_string, message[j] = message[j][0:message[j].find(']')], message[j][message[j].find(']') + 1:]
                             mention = self.library.tools.parse_mention(" ".join([*message[count:j], last_string])[1:])
-                            self.package.items.append(mention)
-                            self.package.params.mentions.append(mention)
+                            package.items.append(mention)
+                            package.params.mentions.append(mention)
                             response.append(message[j])
                             count = j
                             break
             else:
-                self.package.items.append(message[count])
+                package.items.append(message[count])
             count += 1
+        return package
             
 
-    def handler(self):
-        self.package.items.append(self.library.tools.getValue("ENDLINE"))
-        modules = [asyncio.ensure_future(
-                self.library.modules[i].package_handler(self.library.tools, self.package)
-                ) for i in self.library.event_supports[self.package.type]]
+    async def handler(self, package):
+        package.items.append(self.library.tools.getValue("ENDLINE"))
         
-        self.thread_loop.run_until_complete(asyncio.gather(*modules))
+        for i in self.library.event_supports[package.type]:
+            await asyncio.sleep(0)
+            task = self.thread_loop.create_task(
+                self.library.modules[i].package_handler(self.library.tools, package)
+            )
+
 
 
 class databases:
