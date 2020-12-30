@@ -6,7 +6,7 @@ class static:
 main = [0.801, 0.802, 0.9]
 beta_versions = {
     0.9: [0.85 + 0.001 * i for i in range(1, 9)],
-    1.0: [0.95]
+    1.0: [0.95 + 0.001 * i for i in range(2, 3)]
 }
 
 beta = []
