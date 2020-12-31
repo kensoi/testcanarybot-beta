@@ -153,6 +153,16 @@ class libraryModule:
     version = static
     description = "http://kensoi.github.io/testcanarybot/createmodule.html"
     packagetype = []
+    
+        
+    def priority(commands: list):
+        def decorator(func):
+            def test(self, *args, **kwargs):
+                self.commands = commands
+                return func(self, *args, **kwargs)
+            return test
+        
+        return decorator
 
 
 class multiloop_session:

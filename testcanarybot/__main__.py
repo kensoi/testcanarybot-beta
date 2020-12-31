@@ -119,4 +119,4 @@ if args.create_module:
 
     __write(os.getcwd() + dest, render)
         
-    print(f"Executed! [{test}]")     
+    print(f"Executed! [{os.getcwd() + dest}]")     
