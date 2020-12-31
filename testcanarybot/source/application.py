@@ -6,7 +6,7 @@ from .library import library
 from . import exceptions
 
 from .objects import multiloop_session, package, Object
-
+from .events import events
 import asyncio
 import atexit
 import os
@@ -27,6 +27,7 @@ class app:
     __ts = None
     __key = None
     __debug = False
+    __lastthread = 0
 
     def __init__(self, access_token: str, group_id: int, api_version='5.126', service_token: str = "", core_count = 5, session = multiloop_session):
         """
@@ -252,9 +253,7 @@ class app:
     
     
     async def __parse(self, event, thread = None):
-        while not thread:
-            await asyncio.sleep(0)
-            thread = self.getThreads()
+        thread = self.getThread()
 
         if event['type'] == 'message_new':
             package_res = package(**event['object']['message'])
@@ -270,28 +269,24 @@ class app:
                 if key in self.getTools()._ohr.from_id: package_res.from_id = value
 
         package_res.event_id = event['event_id']
-        package_res.type = event['type']
+        package_res.type = getattr(events, event['type'])
         package_res.items = []
         
-        thread.package = package_res
+        self.getThread().create_task(package_res)
 
         
-    def getThreads(self):
-        for thread in self.__handlerlists:
-            if thread.processing: continue
-            return thread
+    def getThread(self):
+        self.__lastthread +=1 
+        if self.__lastthread == len(self.__handlerlists): self.__lastthread = 0
+        return self.__handlerlists[self.__lastthread]
 
 
-    def test_parse(self, event):
+    def test_parse(self, event: package):
         """
         Init test parsing with received event 
         """
-        for thread in self.__threadlists:
-            if thread.processing:
-                continue
-            else:
-                thread.event = event
-                break
+        self.getThread().create_task(event)
+
 
 
     def test_event(self, **kwargs):

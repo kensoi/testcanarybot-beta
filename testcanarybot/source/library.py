@@ -40,7 +40,7 @@ class handler(threading.Thread):
         self.handler_id = handler_id
 
         self.library = library
-        self.package = None
+        self.packages = []
 
 
     def run(self):
@@ -52,31 +52,21 @@ class handler(threading.Thread):
         self.mentions = self.library.tools.getValue("MENTIONS").value
 
         self.thread_loop = asyncio.new_event_loop()
-        self.thread_loop.create_task(self.main_loop())
         asyncio.set_event_loop(self.thread_loop)
 
         self.thread_loop.run_forever()
 
 
-    async def main_loop(self):
-        while True:
-            await asyncio.sleep(0)
+    def create_task(self, package):
+        if package.type in self.library.event_supports:
+            asyncio.run_coroutine_threadsafe(self.resolver(package), self.thread_loop)
 
-            if self.package:
-                self.processing = True
 
-                if hasattr(events, self.package.type):
-                    self.package.type = getattr(events, self.package.type)
-                    if self.package.type in self.library.event_supports.keys():
-                        self.thread_loop.create_task(self.resolver(self.package))
-
-                self.package = None
-                self.processing = False
 
 
     async def resolver(self, package):
         if package.type == events.message_new:
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.00001)
             if hasattr(package, 'action'): 
                 package.params.action = True
 
@@ -107,9 +97,6 @@ class handler(threading.Thread):
 
     async def findMentions(self, package, message):
         for count in range(len(message)):
-
-            await asyncio.sleep(0)
-
             if message[count][0] == '[' and message[count].count('|') == 1:
                 if message[count].count(']') > 0:
                     mention = self.library.tools.parse_mention(
@@ -139,10 +126,10 @@ class handler(threading.Thread):
         package.items.append(self.library.tools.getValue("ENDLINE"))
         
         for i in self.library.event_supports[package.type]:
-            await asyncio.sleep(0)
             task = self.thread_loop.create_task(
                 self.library.modules[i].package_handler(self.library.tools, package)
             )
+            await asyncio.sleep(0.00001)
 
 
 
