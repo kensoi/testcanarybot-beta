@@ -157,7 +157,7 @@ class package(Object):
 class libraryModule:
     codename = "testcanarybot_module"
     name = "testcanarybot sample module"
-    version = current
+    v = current
     description = "http://kensoi.github.io/testcanarybot/createmodule.html"
     packagetype = []
 
@@ -169,12 +169,13 @@ class libraryModule:
 
     def priority(commands: list): 
         def decorator(coro: asyncio.coroutine):
-            def registerCommand(self, tools, package):
+            def registerCommand(self, *args, **kwargs):
                 if coro.__name__ in ['package_handler', 'register', 'void_react']:
                     raise TypeError("Incorrect coroutine registered as command handler!")
                 else:
                     self.commands.extend(commands)
                     self.handler_dict[coro.__name__] = {'handler': coro, 'commands': commands}
+                return coro(self, *args, **kwargs)
             return registerCommand
         return decorator
     
@@ -185,10 +186,11 @@ class libraryModule:
                 raise TypeError("Incorrect coroutine registered as no react handler!")
             else:
                 self.void_react = coro
+            return coro(self, *args, **kwargs)
         return registerCommand
 
-
-class multiloop_session:
+        
+class thread_session:
     """
     wrapper over about aiohttp.request() to avoid errors about loops in threads
     headers: dict()
@@ -196,39 +198,38 @@ class multiloop_session:
     methods = ['post', 'get', 'put', 'delete', 'head']
 
     def __init__(self, headers = None):
-        self.headers = headers
+        self.thread = threading.Thread(target=self.run)
+        self.thread.setName("Multithread_loop")
+        self.thread.daemon = True
+        self.thread.start()
+        time.sleep(1)
 
-    
-    def available_methods(self):
-        return self.methods
 
+    def run(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.session = aiohttp.ClientSession()
+        self.timer_context = aiohttp.helpers.TimerContext(loop = self.loop)
+        self.loop.run_forever()
 
     def __getattr__(self, name):
-        if name in self.methods:
-            async def request(*args, **kwargs):
-                if self.headers:
-                    if 'headers' in kwargs:
-                        h = kwargs.pop('headers')
-                        h.update(self.headers)
+        if hasattr(self.session, name):
+            attr = getattr(self.session, name)
 
-                    else:
-                        h = self.headers
-                        
-                elif 'headers' in kwargs:
-                    h = kwargs.pop('headers')
+            if callable(attr):
+                async def decorator(*args, **kwargs):
+                    with self.timer_context:
+                        response = await attr(*args, **kwargs)
+                        return await response.json(content_type = None)
 
-                else:
-                    h = {}
+                def create(*args, **kwargs):
+                    return asyncio.run_coroutine_threadsafe(decorator(*args, **kwargs), loop = self.loop).result()
 
-                async with aiohttp.request(name.upper(), *args, **kwargs, headers = h) as resp:
-                    await resp.json()
-                    return resp
-
-            return request  
-
+                return create
+            else:
+                return attr
         else:
-            AttributeError(f"{name} not found")
-
+            raise AttributeError(f"{name} is not found")
 
 class tools:
     """

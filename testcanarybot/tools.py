@@ -19,18 +19,16 @@ class uploader:
 
     async def photo_messages(self, photos):
         response = await self.__api.photos.getMessagesUploadServer(peer_id = 0)
-        response = await self.__http.post(response.upload_url, data = self.convertAsset(photos))
-        response = await response.json(content_type = None)
+        response = self.__http.post(response.upload_url, data = self.convertAsset(photos))
 
-        return await self.__api.photos.saveMessagesPhoto(**response)
+        return self.__api.photos.saveMessagesPhoto(**response)
 
         
     async def photo_group_widget(self, photo, image_type):
         response = await self.__api.appWidgets.getGroupImageUploadServer(image_type = image_type)
-        response = await self.__http.post(response.upload_url, data = self.convertAsset(photo))
-        response = await response.json()
+        response = self.__http.post(response.upload_url, data = self.convertAsset(photo))
 
-        return await self.__api.appWidgets.saveGroupImage(**response)
+        return self.__api.appWidgets.saveGroupImage(**response)
 
 
     async def photo_chat(self, photo, peer_id):
@@ -42,10 +40,9 @@ class uploader:
             values['chat_id'] = peer_id - 2000000000
 
         response = await self.__api.photos.getChatUploadServer(**values)
-        response = await self.__http.post(url.upload_url, data = self.convertAsset(photo))
-        response = await response.json()
+        response = self.__http.post(url.upload_url, data = self.convertAsset(photo))
 
-        return await self.__api.messages.setChatPhoto(file = response['response'])
+        return self.__api.messages.setChatPhoto(file = response['response'])
 
 
     async def document(self, document, title=None, tags=None, peer_id=None, doc_type = 'doc', to_wall = None):
@@ -55,8 +52,7 @@ class uploader:
         }
         
         response = await self.__api.docs.getMessagesUploadServer(**values) # vk.com/dev/docs.getMessagesUploadServer
-        response = await self.__http.post(response.upload_url, data = self.convertAsset(document, sign = 'file'))
-        response = await response.json()
+        response = self.__http.post(response.upload_url, data = self.convertAsset(document, sign = 'file'))
         if title: response['title'] = title 
         if tags: response['tags'] = tags
 
@@ -107,8 +103,7 @@ class uploader:
         if link_url: values['link_url'] = link_url
 
         response = await method(**values)
-        response = await self.__http.post(response.upload_url, data = self.convertAsset(file, 'file' if file_type == "photo" else 'video_file'))
-        response = await response.json(content_type=None)
+        response = self.__http.post(response.upload_url, data = self.convertAsset(file, 'file' if file_type == "photo" else 'video_file'))
         
         return await self.__api.stories.save(upload_results = response.response.upload_result)
 

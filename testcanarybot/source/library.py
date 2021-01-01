@@ -8,7 +8,6 @@ import traceback
 from typing import Union
 from types import MethodType
 from .events import events
-from .versions_list import static
 
 from . import objects
 from .expressions import expressions, setExpression, Pages, _ohr
@@ -31,6 +30,8 @@ class _assets:
         pass
 
 assets = _assets()
+tools_test = objects.tools()
+package_test = objects.package(**{'type': events.message_new, 'items': ['test']})
 
 class handler(threading.Thread):
     processing = False
@@ -309,7 +310,7 @@ class library:
             return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
                 module = module_name), module = "library.uploader")
 
-        if events.message_new in moduleObj.packagetype and module_name == 'prioritytest':
+        if events.message_new in moduleObj.packagetype:
             dir_module = dir(moduleObj)
             dir_obj = dir(objects.libraryModule)
             coros = set(dir_module) - set(dir_obj)
@@ -319,13 +320,12 @@ class library:
 
                 if coro_name not in ['start', 'package_handler', 'register'] and callable(coro):
                     try:
-                        coro()
-                    except:
+                        await coro(self.tools, package_test)
+                    except Exception as e:
                         pass
 
                     if moduleObj.void_react:
                         self.void_react = True
-
             if self.commands == set():
                 self.commands = set(moduleObj.commands)
             else:

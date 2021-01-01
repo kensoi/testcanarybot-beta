@@ -4,12 +4,12 @@ from .library import handler
 from .library import init_async
 from .library import library
 from . import exceptions
-
-from .objects import multiloop_session, package, Object
+from .objects import package, Object, thread_session
 from .events import events
 import asyncio
 import atexit
 import os
+import threading
 import time
 
 
@@ -29,7 +29,7 @@ class app:
     __debug = False
     __lastthread = 0
 
-    def __init__(self, access_token: str, group_id: int, api_version='5.126', service_token: str = "", core_count = 5, session = multiloop_session):
+    def __init__(self, session = thread_session, access_token: str, group_id: int, api_version='5.126', service_token: str = "", core_count = 5):
         """
         token: str - token you took from VK Settings: https://vk.com/{yourgroupaddress}?act=tokens
         group_id: int - identificator of your group where you want to install tcb project
@@ -90,9 +90,7 @@ class app:
 
 
         if delay > 0: await asyncio.sleep(delay)
-
-        response = await self.http.post('https://api.vk.com/method/' + method, data = data)
-        response = await response.json()
+        response = self.http.post('https://api.vk.com/method/' + method, data = data)
 
         self.last_request = time.time()
         if 'error' in response: 
@@ -221,11 +219,10 @@ class app:
             'ts': self.__ts,
             'wait': 25,
         }
-        response = await self.http.get(
+        response = self.http.get(
             self.__url,
             params = values
         )
-        response = await response.json()
 
         if 'failed' not in response:
             self.__ts = response['ts']
@@ -249,7 +246,7 @@ class app:
 
     async def __polling(self):
         for event in await self.__check():
-            self.__loop.create_task(self.__parse(event))
+            await self.__loop.create_task(self.__parse(event))
     
     
     async def __parse(self, event, thread = None):

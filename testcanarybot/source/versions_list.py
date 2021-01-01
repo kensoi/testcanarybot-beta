@@ -9,6 +9,5 @@ for i in beta_versions.keys(): beta.extend(beta_versions[i])
 
 supporting = [*main, *beta]
 supporting.sort()
-supporting = [static, *supporting]
 
 current = supporting[-1]
