@@ -1,9 +1,10 @@
 from .events import events
 from .expressions import expression
-from .versions_list import static
+from .versions_list import current
 
 from datetime import datetime
 import aiohttp
+import asyncio
 import random
 import typing
 import sqlite3
@@ -69,6 +70,7 @@ class exception(Object):
     
 
 class package(Object):
+    __any = "$any"
     __str = "$str"
     __mention = "$mention"
     __mentions = "$mentions"
@@ -99,9 +101,10 @@ class package(Object):
         return self.items[:-1]
             
 
-    def check(self, command: typing.Union[str, list]) -> bool:
+    def check(self, command: typing.Union[str, list]) -> typing.Union[bool, list]:
         """
         Following keys:
+        $any - any string
         $str - string item
         $expr - expression item
         $exprs - list from this item to the end is a list of expression objects
@@ -116,33 +119,37 @@ class package(Object):
                 return False
 
         for i in range(len(command)):
-            if command[i] != self.items[i]:
-                if command[i] == self.__str and ([str(i) for i in self.items[i:]] == self.items[i:-1]):
-                    return True
+            if command[i] == self.__any:
+                if not isinstance(self.items[i], str):
+                    return False
+                continue
 
-                elif command[i] == self.__expr:
-                    if not isinstance(self.items[i], (expression, str)):
+            elif command[i] == self.__str and ([str(i) for i in self.items[i:]] == self.items[i:-1]):
+                return True
+
+            elif command[i] == self.__expr:
+                if not isinstance(self.items[i], (expression, str)):
+                    return False
+                continue
+
+            elif command[i] == self.__mention:
+                if not isinstance(self.items[i], mention):
+                    return False
+                continue
+
+            elif command[i] == self.__exprs:
+                for j in self.items[i:-1]:
+                    if not isinstance(j, expression):
                         return False
-                    continue
+                return self.items[i:-1]
 
-                elif command[i] == self.__mention:
-                    if not isinstance(self.items[i], mention):
+            elif command[i] == self.__mentions:
+                for j in self.items[i:-1]:
+                    if not isinstance(j, (mention, str)):
                         return False
-                    continue
-
-                elif command[i] == self.__exprs:
-                    for j in self.items[i:-1]:
-                        if not isinstance(j, expression):
-                            return False
-                    return True
-
-                elif command[i] == self.__mentions:
-                    for j in self.items[i:-1]:
-                        if not isinstance(j, (mention, str)):
-                            return False
-                    return True
-                
-                return False
+                return self.items[i:-1]
+            
+            return False
             
         return True
             
@@ -150,19 +157,35 @@ class package(Object):
 class libraryModule:
     codename = "testcanarybot_module"
     name = "testcanarybot sample module"
-    version = static
+    version = current
     description = "http://kensoi.github.io/testcanarybot/createmodule.html"
     packagetype = []
-    
-        
-    def priority(commands: list):
-        def decorator(func):
-            def test(self, *args, **kwargs):
-                self.commands = commands
-                return func(self, *args, **kwargs)
-            return test
-        
+
+    def __init__(self):
+        self.commands = []
+        self.handler_dict = {}
+        self.void_react = False
+
+
+    def priority(commands: list): 
+        def decorator(coro: asyncio.coroutine):
+            def registerCommand(self, tools, package):
+                if coro.__name__ in ['package_handler', 'register', 'void_react']:
+                    raise TypeError("Incorrect coroutine registered as command handler!")
+                else:
+                    self.commands.extend(commands)
+                    self.handler_dict[coro.__name__] = {'handler': coro, 'commands': commands}
+            return registerCommand
         return decorator
+    
+
+    def void(coro: asyncio.coroutine):
+        def registerCommand(self):
+            if coro.__name__ in ['package_handler', 'register', 'void_react']:
+                raise TypeError("Incorrect coroutine registered as no react handler!")
+            else:
+                self.void_react = coro
+        return registerCommand
 
 
 class multiloop_session:

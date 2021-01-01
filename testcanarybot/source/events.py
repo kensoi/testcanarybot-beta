@@ -1,6 +1,8 @@
 from enum import Enum
 
 class events(Enum):
+    abstract_event = 'abstract_event'
+    
     message_new = 'message_new'
     message_allow = 'message_allow'
     message_deny = 'message_deny'

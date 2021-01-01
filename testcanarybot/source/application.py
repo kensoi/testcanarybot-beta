@@ -160,7 +160,7 @@ class app:
         self.modules_list = list(self.__library.modules.keys())
         init_async(self.__update_longpoll_server(True))
 
-        if len(self.__library.package_handlers) == 0: 
+        if len(self.__library.modules.keys()) == 0: 
             raise exceptions.LibraryError(
                 self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
 
