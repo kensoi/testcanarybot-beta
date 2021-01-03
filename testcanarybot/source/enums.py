@@ -58,3 +58,16 @@ class events(Enum):
 
     like_add = 'like_add'
     like_remove = 'like_remove'
+
+class values(Enum):
+    empty = ''
+    log = 'log'
+    tumbler = 'tumbler'
+    workspace = 'workspace'
+
+    expr = 'expr'
+
+
+    hidden = '$$$'
+
+    

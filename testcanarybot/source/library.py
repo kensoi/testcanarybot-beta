@@ -7,10 +7,10 @@ import traceback
 
 from typing import Union
 from types import MethodType
-from .events import events
 
 from . import objects
-from .expressions import expressions, setExpression, Pages, _ohr
+from .values import global_expressions, Pages
+from .enums import events
 
 class _assets:
     def __init__(self):
@@ -49,12 +49,13 @@ class handler(threading.Thread):
         self.setName(f"handler_{self.handler_id}")
         self.library.tools.system_message(f"{self.getName()} is started", module = "package_handler")
 
-        self.only_commands = self.library.tools.getValue("ONLY_COMMANDS").value
-        self.add_mentions = self.library.tools.getValue("ADD_MENTIONS").value
-        self.mentions = self.library.tools.getValue("MENTIONS").value
+        self.all_messages = self.library.tools.values.ALL_MESSAGES.value
+        self.add_mentions = self.library.tools.values.MENTIONS.value
+        self.mentions = self.library.tools.mentions
 
         self.thread_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.thread_loop)
+        self.library.tools.http.create_session(self)
 
         self.thread_loop.run_forever()
 
@@ -90,7 +91,7 @@ class handler(threading.Thread):
 
             package.params.command = len(package.items) > 0
 
-            if not self.only_commands or package.params.command: 
+            if self.all_messages or package.params.command: 
                 await self.handler(package)
             
         else:
@@ -152,7 +153,6 @@ class handler(threading.Thread):
                 self.library.modules[i].package_handler(self.library.modules[i], self.library.tools, package)
             )
             await asyncio.sleep(0.00001)
-
 
 
 class databases:
@@ -225,9 +225,9 @@ class library:
         events.abstract_event: []
         }
 
-    def __init__(self, v, group_id, api, http):
+    def __init__(self, v, group_id, api, http, log):
         self.supp_v = v
-        self.tools = tools(group_id, api, http)
+        self.tools = tools(group_id, api, http, log)
         self.void_react = False
         self.commands = set()
 
@@ -247,13 +247,13 @@ class library:
     def upload(self, isReload = False, loop = asyncio.get_event_loop()):
         self.modules = {}
         if 'library' in os.listdir(os.getcwd()):
-            self.tools.system_message(self.tools.getValue("LIBRARY_UPLOADER_GET"), module = "library.uploader")
+            self.tools.system_message(str(self.tools.values.LIBRARY_GET), module = "library.uploader")
             
             listdir = os.listdir(os.getcwd() + '\\library\\')
             listdir.remove("__pycache__")
             if len(listdir) == 0:
                 raise exceptions.LibraryError(
-                    self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
+                    self.__library.tools.values.SESSION_LIBRARY_ERROR)
             
             init_async(
                     asyncio.wait(
@@ -274,27 +274,23 @@ class library:
 
         if hasattr(module, 'Main'):
             moduleObj = module.Main()
+
             if moduleObj.v in self.supp_v:
                 pass
             else:
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
+                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_VERSION").value.format(
                     module = module_name), module = "library.uploader")
                     
             if hasattr(moduleObj, "start"):
                 await moduleObj.start(self.tools)
                 
-            if not(issubclass(type(moduleObj), objects.libraryModule) or self.needattr & set(dir(moduleObj)) == self.needattr):
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
-                    module = module_name), module = "library.uploader")
-
-
-            if not hasattr(moduleObj, 'package_handler'):
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
+            if not issubclass(type(moduleObj), objects.libraryModule):
+                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_SUBCLASS").value.format(
                     module = module_name), module = "library.uploader")
 
 
             if not hasattr(moduleObj, 'packagetype'):
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
+                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_PACKAGETYPE").value.format(
                     module = module_name), module = "library.uploader")
 
             else:
@@ -318,7 +314,7 @@ class library:
             for coro_name in coros:
                 coro = getattr(moduleObj, coro_name)
 
-                if coro_name not in ['start', 'package_handler', 'register'] and callable(coro):
+                if coro_name not in ['start', 'package_handler', 'priority', 'void'] and callable(coro):
                     try:
                         await coro(self.tools, package_test)
                     except Exception as e:
@@ -326,16 +322,21 @@ class library:
 
                     if moduleObj.void_react:
                         self.void_react = True
-            if self.commands == set():
-                self.commands = set(moduleObj.commands)
-            else:
-                for i in moduleObj.commands:
-                    self.commands.add(i)
 
+        
+        if not (hasattr(moduleObj, 'package_handler') or len(moduleObj.commands) > 0):
+            return self.tools.system_message(self.tools.values.MODULE_FAILED_HANDLERS.value.format(
+                module = module_name), module = "library.uploader")
+                
+        if self.commands == set():
+            self.commands = set(moduleObj.commands)
+        else:
+            for i in moduleObj.commands:
+                self.commands.add(i)
 
         self.modules[module_name] = moduleObj
 
-        return self.tools.system_message(self.tools.getValue("MODULE_INIT").value.format(
+        return self.tools.system_message(str(self.tools.values.MODULE_INIT).format(
             module = module_name), module = "library.uploader")
 
 
@@ -348,29 +349,21 @@ class library:
 
 class tools(objects.tools):
     __module = "system_message"
-    log = _assets()("log.txt", "a+", encoding="utf-8")
     __db = databases(("system", "system.db"))
 
-    def __init__(self, number, api, http):
-        self.group_id = number
+    def __init__(self, group_id, api, http, log):
+        self.group_id = group_id
         self.api = api
         self.http = http
-        self._ohr = _ohr
+        self.log = log
+        
         init_async(self.__setShort())
 
         self.group_mention = f'[club{self.group_id}|@{self.group_address}]'
         self.mentions = [self.group_mention]
-        self.mentions_name_cases = []
+
         self.get = self.__db.get
-
-
-
-        for print_test in self.getValue("LOGGER_START").value:
-            print(print_test, 
-                file = self.log
-                )
-                
-        self.log.flush()
+        self.values = global_expressions()
 
     
     async def __setShort(self):
@@ -379,11 +372,11 @@ class tools(objects.tools):
         return 1
 
 
-    def system_message(self, *args, textToPrint = None, module = None, newline = False):
+    def system_message(self, *args, write = None, module = None, newline = False):
         if not module: module = self.__module
-        if not textToPrint: textToPrint = " ".join([str(i) for i in list(args)])
+        if not write: write = " ".join([str(i) for i in list(args)])
         
-        response = f'@{self.group_address}.{module}: {textToPrint}'
+        response = f'@{self.group_address}.{module}: {write}'
 
         if self.log.closed:
             self.log = assets("log.txt", "a+", encoding="utf-8")
@@ -398,32 +391,8 @@ class tools(objects.tools):
 
     
     def makepages(self, obj:list, page_lenght: int = 5, listitem: bool = False):
-        listitem_symb = self.getValue("LISTITEM") if listitem else str()
+        listitem_symb = self.values.LISTITEM if listitem else str()
         return Pages(obj, page_lenght, listitem_symb)
-
-
-    def setValue(self, nameOfObject: str, newValue, exp_type = "package_expr"):
-        setExpression(nameOfObject, newValue, exp_type)
-        self.update_list(nameOfObject)
-
-
-    def getValue(self, nameOfObject: str):
-        try:
-            return getattr(expressions, nameOfObject)
-            
-        except AttributeError as e:
-            return "AttributeError"
-
-
-    def update_list(self, nameOfObject = ""):
-        if hasattr(self, "expression_list"):
-            if expressions.list != self.expression_list:
-                self.expression_list = expressions.list
-                if nameOfObject != "":
-                    expressions.parse(nameOfObject)
-        
-        else:
-            self.expression_list = expressions.list
 
 
     def add(self, db_name):
@@ -526,7 +495,7 @@ class api:
             (self._string if self._method else '') + method
         )
 
-    async def __call__(self, **kwargs) -> Union[objects.Object, dict]:
+    async def __call__(self, **kwargs) -> Union[objects.data, dict]:
         for k, v in six.iteritems(kwargs):
             if isinstance(v, (list, tuple)):
                 kwargs[k] = ','.join(str(x) for x in v)
@@ -534,11 +503,11 @@ class api:
         result = await self._method(self._string, kwargs)
         if isinstance(result, list):
             return [
-                objects.Object(**i) for i in result
+                objects.data(**i) for i in result
             ]
         
         elif isinstance(result, dict):
-            return objects.Object(**result)
+            return objects.data(**result)
 
         else:
             return result

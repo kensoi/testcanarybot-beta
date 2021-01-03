@@ -39,6 +39,7 @@ pip-delete-this-directory.txt
 
 # testcanarybot dev scripts & folders
 test.py
+app.py
 assets/
 library/
 

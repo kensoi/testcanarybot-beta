@@ -1,6 +1,6 @@
 main = []
 beta_versions = {
-    1.0: [0.95 + 0.001 * i for i in range(2, 5)]
+    1.0: [0.96 + 0.001 * i for i in range(1)]
 }
 
 beta = []

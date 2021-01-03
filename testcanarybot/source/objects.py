@@ -1,9 +1,10 @@
-from .events import events
-from .expressions import expression
+from .enums import events
+from .values import expression
 from .versions_list import current
 
 from datetime import datetime
 import aiohttp
+import threading
 import asyncio
 import random
 import typing
@@ -40,7 +41,7 @@ class database:
         self.connection.close()
 
 
-class Object:
+class data:
     def __init__(self, **entries):
         self.__dict__.update(entries)
 
@@ -58,18 +59,9 @@ class Object:
             return [self.__convert(i) for i in attr]
         
         else:
-            return attr
+            return attr    
 
-
-class key(Object):
-    pass
-
-
-class exception(Object):
-    no_react = False
-    
-
-class package(Object):
+class package(data):
     __any = "$any"
     __str = "$str"
     __mention = "$mention"
@@ -189,47 +181,7 @@ class libraryModule:
             return coro(self, *args, **kwargs)
         return registerCommand
 
-        
-class thread_session:
-    """
-    wrapper over about aiohttp.request() to avoid errors about loops in threads
-    headers: dict()
-    """
-    methods = ['post', 'get', 'put', 'delete', 'head']
 
-    def __init__(self, headers = None):
-        self.thread = threading.Thread(target=self.run)
-        self.thread.setName("Multithread_loop")
-        self.thread.daemon = True
-        self.thread.start()
-        time.sleep(1)
-
-
-    def run(self):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.session = aiohttp.ClientSession()
-        self.timer_context = aiohttp.helpers.TimerContext(loop = self.loop)
-        self.loop.run_forever()
-
-    def __getattr__(self, name):
-        if hasattr(self.session, name):
-            attr = getattr(self.session, name)
-
-            if callable(attr):
-                async def decorator(*args, **kwargs):
-                    with self.timer_context:
-                        response = await attr(*args, **kwargs)
-                        return await response.json(content_type = None)
-
-                def create(*args, **kwargs):
-                    return asyncio.run_coroutine_threadsafe(decorator(*args, **kwargs), loop = self.loop).result()
-
-                return create
-            else:
-                return attr
-        else:
-            raise AttributeError(f"{name} is not found")
 
 class tools:
     """
@@ -267,8 +219,9 @@ class tools:
         'everyone': ['@everyone', '@all', '@все']
     }
 
-    def get(self, name) -> database:
+    def get(self, db_name: str) -> database:
         pass
+
 
     def system_message(self, *args, textToPrint = None, module = None, newline = False) -> None:
         pass
@@ -308,19 +261,7 @@ class tools:
         pass
 
 
-    def setValue(self, nameOfObject: str, newValue, exp_type = "package_expr") -> None:
-        pass
-
-
-    def getValue(self, nameOfObject: str) -> expression:
-        pass
-
-
-    def update_list(self, nameOfObject = "") -> None:
-        pass
-
-
-    def add(self, db_name) -> None:
+    def add(self, db_name: str) -> None:
         pass
 
 

@@ -1,16 +1,48 @@
-from .versions_list import supporting
-from .library import api
-from .library import handler
-from .library import init_async
-from .library import library
-from . import exceptions
-from .objects import package, Object, thread_session
-from .events import events
 import asyncio
+import aiohttp
 import atexit
 import os
 import threading
 import time
+import typing
+
+from . import exceptions
+from . import objects
+
+from .library import api
+from .library import handler
+from .library import init_async
+from .library import library
+from .library import assets
+
+from .values import _ohr
+from .versions_list import supporting
+
+
+class async_sessions():
+    """
+    wrapper over about aiohttp.request() to avoid errors about loops in threads
+    headers: dict()
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.__args = args
+        self.__kwargs = kwargs
+        self.__sessions = {}
+
+        self.create_session(threading.current_thread())
+
+
+    def create_session(self, thread: threading.Thread) -> None:
+        if not hasattr(thread, 'session'): 
+            thread.session = aiohttp.ClientSession(*self.__args, **self.__kwargs)
+
+
+    def __getattr__(self, name):
+        if name in dir(aiohttp.ClientSession):
+            thread = threading.current_thread()
+            self.create_session(thread)
+            return getattr(thread.session, name)
 
 
 class app:  
@@ -19,58 +51,69 @@ class app:
             Gecko/20100101 Firefox/52.0"""
     }
 
-    core_count = 5
+    handlers_count = 5
     RPS_DELAY = 1 / 20  
     last_request = 0.0
     __handlerlists = []
-    __url = ":::"
+    __url = "$$$"
     __ts = None
     __key = None
-    __debug = False
     __lastthread = 0
 
-    def __init__(self, session = thread_session, access_token: str, group_id: int, api_version='5.126', service_token: str = "", core_count = 5):
+    def __init__(self, access_token: str, group_id: int, api_version: str = '5.126', service_token: typing.Optional[str] = None, handlers_count:int = 5, session = async_sessions):
         """
-        token: str - token you took from VK Settings: https://vk.com/{yourgroupaddress}?act=tokens
-        group_id: int - identificator of your group where you want to install tcb project
-        api_version: str - VK API version
+        access_token [str] - token you took from VK Settings: https://vk.com/{yourgroupaddress}?act=tokens
+        group_id [int] - identificator of your group where you want to install tcb project
+        api_version: [str] - VK API version (default: 5.126)
+        service_token [str] - token of your app for service type of access (paste to your query )
+        handlers_count [int] - count of thread handlers you need to create.
+        session [object or ClientSession] - change default session (default: testcanarybot.source.application.async_sessions)
         """
         self.http = session(headers = self.headers)
         
         for filename in ['assets', 'library']:
             if filename in os.listdir(os.getcwd()): continue
             os.mkdir(os.getcwd() + '\\' + filename)
-            
+
+        self.log = assets("log.txt", "a+", encoding="utf-8")
 
         self.__token = access_token
         self.__loop = asyncio.get_event_loop()
         self.__service = service_token
         self.__group_id = group_id
         self.__av = api_version
-        self.core_count = core_count
+        self.handlers_count = handlers_count
 
         self.api = api(self.http, self.method)
-        self.__library = library(supporting, group_id, self.api, self.http)
+        self.__library = library(supporting, group_id, self.api, self.http, self.log)
         
         atexit.register(self.__close)
-
-        text = self.__library.tools.getValue('SESSION_START').value
-        print(f"\n@{self.__library.tools.group_address}: {text}\n")
-        print(f"\n{self.__library.tools.getDateTime()} @{self.__library.tools.group_address}: {text}\n", file=self.__library.tools.log)
+        self.__library.tools.system_message(
+            module = self.http.__class__.__name__, 
+            write = str(self.getTools().values.SESSION_START))
 
 
     def __close(self):
-        self.__library.tools.system_message(self.__library.tools.getValue("SESSION_CLOSE").value, module = "http")
-        if not self.__library.tools.log.closed:
-            self.__library.tools.log.close()
+        self.__library.tools.system_message(module = self.http.__class__.__name__, write = self.getTools().values.SESSION_CLOSE)
+
+        if self.log.closed:
+            self.log = assets("log.txt", "a+", encoding="utf-8")
+
+        for print_test in self.getTools().values.LOGGER_CLOSE.value:
+            print(print_test, 
+                file = self.log
+                )
+
+        if not self.log.closed:
+            self.log.close()
         
 
     async def method(self, method: str, values=None):
         """ 
         Init API method
 
-        method: str - method name
-        values: dict - parameters.
+        method [str] - method name
+        values [dict] - parameters.
         """
         data = values if values else dict()
         delay = self.RPS_DELAY - (time.time() - self.last_request)
@@ -90,7 +133,9 @@ class app:
 
 
         if delay > 0: await asyncio.sleep(delay)
-        response = self.http.post('https://api.vk.com/method/' + method, data = data)
+
+        response = await self.http.post('https://api.vk.com/method/' + method, data = data)
+        response = await response.json(content_type = None)
 
         self.last_request = time.time()
         if 'error' in response: 
@@ -99,33 +144,19 @@ class app:
         return response['response']    
 
 
-    def setMentions(self, *args):
+    def setMentions(self, mentions: list):
         """
         Setup custom mentions instead "@{groupadress}"
         """
-        self.__library.tools.setValue("MENTIONS", [self.__library.tools.group_mention, *[str(i).lower() for i in args]])
+        self.__library.tools.values.set("MENTIONS", [self.__library.tools.group_mention, *[str(i).lower() for i in mentions]])
 
 
-    def setNameCases(self, *args):
-        """
-        Setup custom mentions instead \"@{groupaddress}\" for :::MENTION::: syntax
-        """
-        self.__library.tools.setValue("MENTION_NAME_CASES", args)
-
-
-    def getModule(self, name: str):
+    def getModule(self, name: str) -> objects.libraryModule:
         """
         Get module from your library by name
         name: str - name of library module
         """
         return self.__library.modules[name]
-
-
-    def hide(self, *args):
-        """
-        Hide this list of modules.
-        """
-        self.__library.hidden_modules = args
 
 
     def getTools(self):
@@ -135,18 +166,18 @@ class app:
         return self.__library.tools
 
 
-    def getValue(self, string: str):
+    def getValue(self, name: str):
         """
         Get an expression from list
         """  
-        self.__library.tools.getValue(string)
+        return getattr(self.getTools().values, name)
     
 
-    def setValue(self, string: str, value, exp_type = ""):
+    def setValue(self, name: str, value: typing.Any = None, stype: typing.Optional[values] = None):
         """
         Change a value of expression from list
         """  
-        self.__library.tools.setValue(string, value, exp_type)
+        self.__library.tools.values.set(name, value, stype)
 
 
     def setup(self):  
@@ -160,10 +191,13 @@ class app:
 
         if len(self.__library.modules.keys()) == 0: 
             raise exceptions.LibraryError(
-                self.__library.tools.getValue("SESSION_LIBRARY_ERROR"))
+                self.getTools().values.LIBRARY_ERROR)
 
-        self.__library.tools.update_list()
-        self.__debug = self.getTools().getValue("DEBUG_MESSAGES")
+        for print_test in self.getTools().values.LOGGER_START.value:
+            print(print_test, 
+                file = self.log
+                )
+                
 
         for i in range(self.core_count):
             thread = handler(self.__library, i)
@@ -171,19 +205,19 @@ class app:
             self.__handlerlists.append(thread)
     
 
-    def start_polling(self):
+    def start_polling(self) -> None:
         """
         Start listenning to VK Longpoll server to get and parse events from it
         """
 
         self.setup()
         self.__library.tools.system_message(
-            self.__library.tools.getValue("SESSION_START_POLLING").value, module = 'longpoll', newline=True)
+            str(self.getTools().values.LONGPOLL_START), module = 'longpoll', newline=True)
         self.__loop.run_until_complete(
             self.__pollingCycle())
 
 
-    def check_server(self, times:int = 1):
+    def check_server(self, times: int = 1) -> None:
         """
         Check VK server to get events and send them to your library to parse once.
         times : int - how many times you need to check.
@@ -191,24 +225,27 @@ class app:
 
         self.setup()
         self.__library.tools.system_message(
-            self.__library.tools.getValue("SESSION_CHECK_SERVER").value, module = 'longpoll', newline=True)
+            module = 'longpoll', newline = True,
+            write = str(self.getTools().values.LONGPOLL_CHECK))
         
         while times != 0:
             times -= 1
             init_async(self.__polling(), loop=main_loop)
         
-        self.__library.tools.system_message(self.__library.tools.getValue("SESSION_LISTEN_CLOSE").value, module = 'longpoll')
+        self.getTools().system_message(module = 'longpoll',
+            write = self.getTools().values.LONGPOLL_CLOSE)
 
 
-    async def __update_longpoll_server(self, update_ts=True):
+    async def __update_longpoll_server(self, update_ts: bool = True) -> None:
         response = await self.method('groups.getLongPollServer', {'group_id': self.__group_id})
 
         if update_ts: self.__ts = response['ts']
         self.__key, self.__url = response['key'], response['server']
-        if self.__debug:
+
+        if self.getTools().values.DEBUG_MESSAGES:
             self.getTools().system_message( 
                 module="longpoll",
-                textToPrint = "Longpoll server updated"
+                write = self.getTools().values.LONGPOLL_UPDATE.value
                 )
 
 
@@ -219,10 +256,11 @@ class app:
             'ts': self.__ts,
             'wait': 25,
         }
-        response = self.http.get(
+        response = await self.http.get(
             self.__url,
             params = values
         )
+        response = await response.json(content_type = None)
 
         if 'failed' not in response:
             self.__ts = response['ts']
@@ -232,7 +270,7 @@ class app:
             self.__ts = response['ts']
 
         elif response['failed'] == 2:
-            await self.__update_longpoll_server(update_ts=False)
+            await self.__update_longpoll_server(False)
 
         elif response['failed'] == 3:
             await self.__update_longpoll_server()
@@ -250,31 +288,27 @@ class app:
     
     
     async def __parse(self, event, thread = None):
-        thread = self.getThread()
-
         if event['type'] == 'message_new':
-            package_res = package(**event['object']['message'])
-            package_res.params.client_info = Object(**event['object']['client_info'])
-            package_res.params.from_chat = package_res.peer_id > 2000000000
+            package = objects.package(**event['object']['message'])
+            package.params.client_info = objects.data(**event['object']['client_info'])
+            package.params.from_chat = package.peer_id > 2000000000
 
 
         else:
-            package_res = package(**event['object'])
+            package = objects.package(**event['object'])
 
             for key, value in event['object'].items():
-                if key in self.getTools()._ohr.peer_id: package_res.peer_id = value
-                if key in self.getTools()._ohr.from_id: package_res.from_id = value
+                if key in _ohr.peer_id: package.peer_id = value
+                if key in _ohr.from_id: package.from_id = value
 
-        package_res.event_id = event['event_id']
-        package_res.type = getattr(events, event['type'])
-        package_res.items = []
+        package.event_id = event['event_id']
+        package.items = []
         
-        self.getThread().create_task(package_res)
+        self.__getThread().create_task(package)
 
         
-    def getThread(self):
-        self.__lastthread +=1 
-        if self.__lastthread == len(self.__handlerlists): self.__lastthread = 0
+    def __getThread(self):
+        self.__lastthread = 0 if self.__lastthread + 1 == len(self.__handlerlists) else self.__lastthread + 1
         return self.__handlerlists[self.__lastthread]
 
 
@@ -283,20 +317,3 @@ class app:
         Init test parsing with received event 
         """
         self.getThread().create_task(event)
-
-
-
-    def test_event(self, **kwargs):
-        """
-        Create test event package for testcanarybot.app.test_parse(event)
-        """
-        kwargs = kwargs.copy()
-        from .events.events import message_new
-        
-        if kwargs['type'] == message_new:
-            from .objects import message as package
-
-        else:
-            from .objects import package
-        
-        event = package(**kwargs)
