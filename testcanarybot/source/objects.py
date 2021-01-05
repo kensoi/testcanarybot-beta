@@ -1,4 +1,4 @@
-from .enums import events
+from .enums import events as enums_events
 from .values import expression
 from .versions_list import current
 
@@ -157,15 +157,40 @@ class libraryModule:
         self.commands = []
         self.handler_dict = {}
         self.void_react = False
+        self.event_handlers = {} # event.abstract_event: []
+
+    def event(events: list):
+        def decorator(coro: asyncio.coroutine):
+            def registerCommand(self, *args, **kwargs):
+                try:
+                    if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
+                        raise TypeError("Incorrect coroutine registered as command handler!")
+
+                    else:
+                        for i in events:
+                            if not isinstance(i, enums_events):
+                                raise TypeError("Incorrect type!")
+
+                            elif i not in self.event_handlers and i != enums_events.message_new:
+                                self.event_handlers[i] = []
+
+                            self.event_handlers[i].append(coro)
+                    return coro(self, *args, **kwargs)
+                except Exception as e:
+                    print(e)
+            return registerCommand
+        return decorator
 
 
     def priority(commands: list): 
         def decorator(coro: asyncio.coroutine):
             def registerCommand(self, *args, **kwargs):
-                if coro.__name__ in ['package_handler', 'register', 'void_react']:
-                    raise TypeError("Incorrect coroutine registered as command handler!")
+                if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
+                    raise TypeError("Incorrect coroutine registered as priority handler!")
+
                 else:
                     self.commands.extend(commands)
+
                     self.handler_dict[coro.__name__] = {'handler': coro, 'commands': commands}
                 return coro(self, *args, **kwargs)
             return registerCommand
@@ -173,11 +198,13 @@ class libraryModule:
     
 
     def void(coro: asyncio.coroutine):
-        def registerCommand(self):
-            if coro.__name__ in ['package_handler', 'register', 'void_react']:
-                raise TypeError("Incorrect coroutine registered as no react handler!")
+        def registerCommand(self, *args, **kwargs):
+            if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
+                raise TypeError("Incorrect coroutine registered as void handler!")
+
             else:
                 self.void_react = coro
+
             return coro(self, *args, **kwargs)
         return registerCommand
 

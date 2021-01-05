@@ -61,15 +61,14 @@ class handler(threading.Thread):
 
 
     def create_task(self, package):
-        if package.type in self.library.event_supports:
+        if package.type == events.message_new or package.type in self.library.handlers['events']:
             asyncio.run_coroutine_threadsafe(self.resolver(package), self.thread_loop)
-
-
 
 
     async def resolver(self, package):
         if package.type == events.message_new:
             await asyncio.sleep(0.00001)
+
             if hasattr(package, 'action'): 
                 package.params.action = True
 
@@ -90,7 +89,6 @@ class handler(threading.Thread):
                 package.params.attachments = True
 
             package.params.command = len(package.items) > 0
-
             if self.all_messages or package.params.command: 
                 await self.handler(package)
             
@@ -126,34 +124,31 @@ class handler(threading.Thread):
             
 
     async def handler(self, package: objects.package):
-        package.items.append(self.library.tools.getValue("ENDLINE"))
-        if package.type == events.message_new and package.params.command:
-            if package.items[0] in self.library.commands:
-                for i in self.library.getPriority(package.items[0]):
-                    for handler_name, data in i.handler_dict.items():
-                        if package.items[0] in data['commands']:
-                            self.thread_loop.create_task(
-                                data['handler'](i, self.library.tools, package)
-                                )
-                    await asyncio.sleep(0.00001)
-                await asyncio.sleep(0.00001)
+        package.items.append(self.library.tools.values.ENDLINE)
+        
+        try:
+            if package.params.command and package.items[0] in self.library.handlers['priority'].keys():
+                for i in self.library.handlers['priority'][package.items[0]]:
+                    module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
 
-                return
+                    self.thread_loop.create_task(i(module, self.library.tools, package))
+                    await asyncio.sleep(0.00001)
 
             elif self.library.void_react:
-                for i in self.library.getVoid():
-                    self.thread_loop.create_task(
-                        self.library.modules[i].void_react(self.library.modules[i], self.library.tools, package)
-                        )
+                for i in self.library.handlers['void']:
+                    module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
+                    self.thread_loop.create_task(i(module, self.library.tools, package))
+
                     await asyncio.sleep(0.00001)
-                return
 
-        for i in self.library.event_supports[package.type]:
-            task = self.thread_loop.create_task(
-                self.library.modules[i].package_handler(self.library.modules[i], self.library.tools, package)
-            )
-            await asyncio.sleep(0.00001)
+            elif package.type in self.library.handlers['events'].keys():
+                for i in self.library.handlers['events'][package.type]:
+                    module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
+                    task = self.thread_loop.create_task(i(module, self.library.tools, package))
 
+                    await asyncio.sleep(0.00001)
+        except Exception as e:
+            self.library.tools.system_message(module = "exception_handler", write = e)
 
 class databases:
     def __init__(self, names: list):
@@ -221,27 +216,24 @@ class databases:
 
 class library:
     modules = {}
-    event_supports = {
-        events.abstract_event: []
-        }
+    handlers = {
+        'void': [], # [handler1, handler2]
+        'priority': {}, # {'test', 'hello', 'world'}: [handler1, handler2, ...]
+        'events': {} # event.abstract_event: [handler1, handler2]
+    }
 
     def __init__(self, v, group_id, api, http, log):
         self.supp_v = v
         self.tools = tools(group_id, api, http, log)
         self.void_react = False
-        self.commands = set()
+        self.commands = []
 
 
     def getPriority(self, command):
-        for i in self.event_supports[events.message_new]:
-            if len(self.modules[i].commands) > 0:
-                if command in self.modules[i].commands:
-                    yield self.modules[i]
-
+        return self.handlers['priority'][command]
 
     def getVoid(self):
-        for i in self.event_supports[events.message_new]:
-            if self.modules[i].void_react: yield i
+        return self.self.handlers['void']
             
 
     def upload(self, isReload = False, loop = asyncio.get_event_loop()):
@@ -258,16 +250,17 @@ class library:
             init_async(
                     asyncio.wait(
                         [
-                            loop.create_task(self.moduleload(module, isReload)) for module in listdir
+                            loop.create_task(self.upload_handler(module)) for module in listdir
                         ]
                     ), loop = loop
                 )
             self.tools.system_message(
                 "Supporting event types: {event_types}".format(
-                    event_types = "\n".join(["", *["\t\t" + str(i) for i in self.event_supports.keys() if i != events.abstract_event], ""])
+                    event_types = "\n".join(["", "\t\tevents.message_new", *["\t\t" + str(i) for i in self.handlers['events'].keys()], ""])
                 ), module = "library.uploader", newline = True)
-        
-    async def moduleload(self, module_name, isReload):
+    
+
+    async def upload_handler(self, module_name):
         module = importlib.import_module("library." + module_name[:-3] if module_name.endswith('.py') else module_name + 'main')
 
         if module_name[-3:] == '.py': module_name = module_name[:-3]
@@ -278,71 +271,71 @@ class library:
             if moduleObj.v in self.supp_v:
                 pass
             else:
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_VERSION").value.format(
+                return self.tools.system_message(self.tools.values.MODULE_FAILED_VERSION.value.format(
                     module = module_name), module = "library.uploader")
                     
             if hasattr(moduleObj, "start"):
                 await moduleObj.start(self.tools)
                 
             if not issubclass(type(moduleObj), objects.libraryModule):
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_SUBCLASS").value.format(
+                return self.tools.system_message(self.tools.values.MODULE_FAILED_SUBCLASS.value.format(
                     module = module_name), module = "library.uploader")
-
-
-            if not hasattr(moduleObj, 'packagetype'):
-                return self.tools.system_message(self.tools.getValue("MODULE_FAILED_PACKAGETYPE").value.format(
-                    module = module_name), module = "library.uploader")
-
-            else:
-                self.event_supports[events.abstract_event].append(module_name)
-
-                for package in moduleObj.packagetype:
-                    if package not in self.event_supports: self.event_supports[package] = list()
-                    self.event_supports[package].append(module_name)
-                
-
 
         else:
-            return self.tools.system_message(self.tools.getValue("MODULE_FAILED_BROKEN").value.format(
+            return self.tools.system_message(self.tools.values.MODULE_FAILED_BROKEN.value.format(
                 module = module_name), module = "library.uploader")
+                
+        dir_module = dir(moduleObj)
+        dir_obj = dir(objects.libraryModule)
+        coros = set(dir_module) - set(dir_obj)
+        for coro_name in coros:
+            coro = getattr(moduleObj, coro_name)
 
-        if events.message_new in moduleObj.packagetype:
-            dir_module = dir(moduleObj)
-            dir_obj = dir(objects.libraryModule)
-            coros = set(dir_module) - set(dir_obj)
+            if coro_name not in ['start', 'priority', 'void', 'event'] and callable(coro):
+                try:
+                    await coro(self.tools, package_test)
 
-            for coro_name in coros:
-                coro = getattr(moduleObj, coro_name)
+                except Exception as e:
+                    pass
 
-                if coro_name not in ['start', 'package_handler', 'priority', 'void'] and callable(coro):
-                    try:
-                        await coro(self.tools, package_test)
-                    except Exception as e:
-                        pass
+        message = self.tools.values.MODULE_INIT.value.format(
+            module = module_name)
 
-                    if moduleObj.void_react:
-                        self.void_react = True
-
-        
-        if not (hasattr(moduleObj, 'package_handler') or len(moduleObj.commands) > 0):
+        if len(moduleObj.commands) == 0 and len(moduleObj.event_handlers.keys()) == 0 and not moduleObj.void_react:
             return self.tools.system_message(self.tools.values.MODULE_FAILED_HANDLERS.value.format(
                 module = module_name), module = "library.uploader")
-                
-        if self.commands == set():
-            self.commands = set(moduleObj.commands)
-        else:
-            for i in moduleObj.commands:
-                self.commands.add(i)
+        
+        if len(moduleObj.commands) > 0:
+            message += self.tools.values.MODULE_INIT_PRIORITY.value.format(count = len(moduleObj.commands))
+
+            for i in moduleObj.handler_dict.values():
+                for j in i['commands']:
+                    if j not in self.handlers['priority']:
+                        self.handlers['priority'][j] = []
+
+                    self.handlers['priority'][j].append(i['handler'])
+
+        if len(moduleObj.event_handlers.keys()) > 0:
+            for event in moduleObj.event_handlers.keys():
+                message += self.tools.values.MODULE_INIT_EVENTS.value.format(event = str(event))
+                if not event in self.handlers['events']:
+                    self.handlers['events'][event] = []
+
+                self.handlers['events'][event].extend(moduleObj.event_handlers[event])
+        
+
+        if moduleObj.void_react:
+            self.handlers['void'].append(moduleObj.void_react)
+            self.void_react = True
+            message += self.tools.values.MODULE_INIT_VOID.value
 
         self.modules[module_name] = moduleObj
-
-        return self.tools.system_message(str(self.tools.values.MODULE_INIT).format(
-            module = module_name), module = "library.uploader")
+        return self.tools.system_message(write = message, module = "library.uploader")
 
 
-    def getCompactible(self, packagetype):
-        if packagetype in self.event_supports:
-            return self.event_supports[packagetype]
+    def getCompactible(self, event):
+        if event in self.handlers['events'].keys():
+            return self.handlers['events'][event]
         else:
             return []
 

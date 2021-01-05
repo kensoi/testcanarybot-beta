@@ -17,24 +17,11 @@ class expression:
         return self.value
 
 class expr(expression):
-    def __init__(self, type: values, value: typing.Optional[str] = None):
-        self.type = type
-        self.value = value if value else values.empty
+    def __init__(self, stype: values, value: typing.Optional[str] = None):
+        self.type = stype
+        self.value = value if value else False
 
 class global_expressions:
-    __list = [
-        "ALL_MESSAGES", 
-        "DEBUG_MESSAGES", 
-        "MENTIONS", 
-        "LOGGER_START", "LOGGER_CLOSE", 
-        "SESSION_START", "SESSION_CLOSE", 
-        "LONGPOLL_START", "LONGPOLL_CLOSE", "LONGPOLL_ERROR", "LONGPOLL_CHECK", "LONGPOLL_UPDATE",
-        "LIBRARY_GET", "LIBRARY_ERROR", 
-        "MODULE_INIT", "MODULE_FAILED_BROKEN", "MODULE_FAILED_VERSION", "MODULE_FAILED_SUBCLASS", "MODULE_FAILED_PACKAGETYPE", "MODULE_FAILED_HANDLERS", 
-        "MESSAGE_HANDLER_ITEMS", "MESSAGE_HANDLER_TYPE", "MESSAGE_HANDLER_CHAT", "MESSAGE_HANDLER_USER", "MESSAGE_HANDLER_IT", 
-        "ENDLINE", 
-        "LISTITEM"
-        ]
     __types = {
         values.workspace: [],
         values.log: [],
@@ -65,12 +52,18 @@ class global_expressions:
         self.__values["LIBRARY_ERROR"] = expr(values.log, "library directory is broken")
 
         self.__values["MODULE_INIT"] = expr(values.log, "{module} is loaded")
+
+        self.__values["MODULE_INIT"] = expr(values.log, "{module} is loaded")
+        self.__values["MODULE_INIT_VOID"] = expr(values.log, "\n\t\t + void coroutine")
+        self.__values["MODULE_INIT_PRIORITY"] = expr(values.log, "\n\t\t + registered {count} commands")
+        self.__values["MODULE_INIT_EVENTS"] = expr(values.log, "\n\t\t with {event}")
+        
         self.__values["MODULE_FAILED_BROKEN"] = expr(values.log, "{module} is broken: no 'Main' class")
         self.__values["MODULE_FAILED_VERSION"] = expr(values.log, "{module} is broken: unsupported version of that")
         self.__values["MODULE_FAILED_SUBCLASS"] = expr(values.log, "{module} is broken: is not inherited from testcanarybot.objects.libraryModule")
-        self.__values["MODULE_FAILED_PACKAGETYPE"] = expr(values.log, "{module} is broken: attribute \"packagetype\" not found")
-        self.__values["MODULE_FAILED_HANDLERS"] = expr(values.log, """{module} is broken: no any handlers at module, paste "package_handler" or write handler with these decorators:
-            @objects.libraryModule.priority(commands: list)
+        self.__values["MODULE_FAILED_HANDLERS"] = expr(values.log, """{module} is broken: no any handlers at module, write coroutine with these decorators:
+            @objects.libraryModule.priority(commands = [])
+            @objects.libraryModule.event(events = [])
             @objects.libraryModule.void""")
 
 
@@ -81,33 +74,33 @@ class global_expressions:
         self.__values["MESSAGE_HANDLER_IT"] = expr(values.log, "\t\ttext: {text}")
 
         self.__values["ENDLINE"] = expr(values.workspace, ":::ENDLINE:::")
+        self.__values["TEST"] = expr(values.tumbler, ":::TEST:::")
         self.__values["BEEPA_PAPASA"] = expr(values.hidden, ":::NYASHKA:NYASHKA:::")
         self.__values["LISTITEM"] = expr(values.expr, "\u2022")
 
 
     def __getattr__(self, name: str):
-        if name in self.__list:
+        if name in self.__values.keys():
             return self.__values[name]
             
         return expr(values.empty, f":::{name}:UNKNOWN:::")
 
     @property
     def all(self):
-        return self.__list
+        return self.__values.keys()
 
     
     def set(self, name: str, value: typing.Any = None, stype: typing.Optional[values] = None):
         value = value if value else f":::{name}:::"
         stype = stype if stype else values.expr
 
-        if name in self.__list and name not in self.__types[values.hidden]:
+        if name in self.__values.keys() and name not in self.__types[values.hidden]:
             self.__values[name].value = value
 
         else:
             if stype in self.__types.keys():
                 self.__types[stype].append(name)
                 self.__values[name] = expr(stype, value)
-                self.__list.append(name)
 
             else:
                 raise TypeError("Incorrect exp_type")

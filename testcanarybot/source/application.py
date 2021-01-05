@@ -9,6 +9,8 @@ import typing
 from . import exceptions
 from . import objects
 
+from .enums import values
+from .enums import events
 from .library import api
 from .library import handler
 from .library import init_async
@@ -176,8 +178,8 @@ class app:
     def setValue(self, name: str, value: typing.Any = None, stype: typing.Optional[values] = None):
         """
         Change a value of expression from list
-        """  
-        self.__library.tools.values.set(name, value, stype)
+        """
+        self.getTools().values.set(name, value = value, stype = stype)
 
 
     def setup(self):  
@@ -199,7 +201,7 @@ class app:
                 )
                 
 
-        for i in range(self.core_count):
+        for i in range(self.handlers_count):
             thread = handler(self.__library, i)
             thread.start()
             self.__handlerlists.append(thread)
@@ -284,7 +286,7 @@ class app:
 
     async def __polling(self):
         for event in await self.__check():
-            await self.__loop.create_task(self.__parse(event))
+            self.__loop.create_task(self.__parse(event))
     
     
     async def __parse(self, event, thread = None):
@@ -301,9 +303,9 @@ class app:
                 if key in _ohr.peer_id: package.peer_id = value
                 if key in _ohr.from_id: package.from_id = value
 
+        package.type = getattr(events, event['type'])
         package.event_id = event['event_id']
         package.items = []
-        
         self.__getThread().create_task(package)
 
         
@@ -312,7 +314,7 @@ class app:
         return self.__handlerlists[self.__lastthread]
 
 
-    def test_parse(self, event: package):
+    def test_parse(self, event: objects.package):
         """
         Init test parsing with received event 
         """
