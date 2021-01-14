@@ -98,7 +98,7 @@ class package(data):
         return self.items[:-1]
             
 
-    def check(self, command: typing.Union[str, list]) -> typing.Union[bool, list]:
+    def check(self, command: list) -> typing.Union[bool, list]:
         """
         Following keys:
         $any - any string
@@ -108,7 +108,7 @@ class package(data):
         $mention - mention item
         $mentions - list from this item to the end is a list of mention objects
         """
-        if len(self.items) == 0: 
+        if len(self.items) == 0:
             return False
 
         if command[-1] not in ['$mentions', '$exprs']:
@@ -116,7 +116,10 @@ class package(data):
                 return False
 
         for i in range(len(command)):
-            if command[i] == self.__any:
+            if command[i] == self.items[i]:
+                continue
+                
+            elif command[i] == self.__any:
                 if not isinstance(self.items[i], str):
                     return False
                 continue
@@ -145,8 +148,9 @@ class package(data):
                     if not isinstance(j, (mention, str)):
                         return False
                 return self.items[i:-1]
-            
-            return False
+
+            else:
+                return False
             
         return True
             
@@ -167,6 +171,7 @@ class libraryModule:
     def registerCommand(self, ):
         pass
 
+
 def event(events: list):
     def decorator(coro: asyncio.coroutine):
         def registerCommand(self, *args, **kwargs):
@@ -183,7 +188,7 @@ def event(events: list):
                             self.event_handlers[i] = []
 
                         self.event_handlers[i].append(coro)
-                return coro(self, *args, **kwargs)
+                return # coro(self, *args, **kwargs)
             except Exception as e:
                 print(e)
             
@@ -201,7 +206,7 @@ def priority(commands: list):
                 self.commands.extend(commands)
 
                 self.handler_dict[coro.__name__] = {'handler': coro, 'commands': commands}
-            return coro(self, *args, **kwargs)
+            return # coro(self, *args, **kwargs)
         return registerCommand
     return decorator
 
@@ -214,7 +219,7 @@ def void(coro: typing.Generator):
         else:
             self.void_react = coro
 
-        return coro(self, *args, **kwargs)
+        return # coro(self, *args, **kwargs)
     return registerCommand
 
 
