@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import os
 import six
 import threading
@@ -9,6 +10,7 @@ from typing import Union
 from types import MethodType
 
 from . import objects
+from . import exceptions
 from .values import global_expressions, Pages
 from .enums import events
 
@@ -108,13 +110,12 @@ class handler(threading.Thread):
                         mention
                         )
                 else:
-                    for j in range(count, message_lenght):
+                    for j in range(count, len(message)):
                         if message[j].count(']') > 0:
                             last_string, message[j] = message[j][0:message[j].find(']')], message[j][message[j].find(']') + 1:]
                             mention = self.library.tools.parse_mention(" ".join([*message[count:j], last_string])[1:])
                             package.items.append(mention)
                             package.params.mentions.append(mention)
-                            response.append(message[j])
                             count = j
                             break
             else:
@@ -134,7 +135,7 @@ class handler(threading.Thread):
                     self.thread_loop.create_task(i(module, self.library.tools, package))
                     await asyncio.sleep(0.00001)
 
-            elif self.library.void_react:
+            elif self.library.void_react and package.params.command or package.params.command:
                 for i in self.library.handlers['void']:
                     module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
                     self.thread_loop.create_task(i(module, self.library.tools, package))
@@ -144,7 +145,7 @@ class handler(threading.Thread):
             elif package.type in self.library.handlers['events'].keys():
                 for i in self.library.handlers['events'][package.type]:
                     module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
-                    task = self.thread_loop.create_task(i(module, self.library.tools, package))
+                    self.thread_loop.create_task(i(module, self.library.tools, package))
 
                     await asyncio.sleep(0.00001)
         except Exception as e:
@@ -191,27 +192,27 @@ class databases:
         if check == list:
             for name in names:
                 if self.check(name[0]):
-                    raise DBError("This DB already exists")
+                    raise exceptions.DBError("This DB already exists")
 
                 else:
                     self.__dbs[name[0]] = objects.database(name[1])
 
         elif check == tuple:
             if self.check(names[0]):
-                raise DBError("This DB already exists")
+                raise exceptions.DBError("This DB already exists")
 
             else:
                 self.__dbs[names[0]] = objects.database(names[1])
 
         elif check == str:
             if self.check(names):
-                raise DBError("This DB already exists")
+                raise exceptions.DBError("This DB already exists")
 
             else:
                 self.__dbs[names] = objects.database(names)
         
         else:
-            raise DBError("Incorrect type of 'names'")
+            raise exceptions.DBError("Incorrect type of 'names'")
 
 
 class library:
@@ -233,7 +234,7 @@ class library:
         return self.handlers['priority'][command]
 
     def getVoid(self):
-        return self.self.handlers['void']
+        return self.handlers['void']
             
 
     def upload(self, isReload = False, loop = asyncio.get_event_loop()):
@@ -245,7 +246,7 @@ class library:
             listdir.remove("__pycache__")
             if len(listdir) == 0:
                 raise exceptions.LibraryError(
-                    self.__library.tools.values.SESSION_LIBRARY_ERROR)
+                    self.tools.values.SESSION_LIBRARY_ERROR)
             
             init_async(
                     asyncio.wait(
@@ -295,7 +296,7 @@ class library:
                 try:
                     await coro(self.tools, package_test)
 
-                except Exception as e:
+                except:
                     pass
 
         message = self.tools.values.MODULE_INIT.value.format(
@@ -347,6 +348,7 @@ class tools(objects.tools):
     def __init__(self, group_id, api, http, log):
         self.group_id = group_id
         self.api = api
+        self.assets = assets
         self.http = http
         self.log = log
         
@@ -415,7 +417,7 @@ class tools(objects.tools):
                 return f'[id{page_id}|{first_name}]'
             
             elif page_id == self.group_id:
-                return self.selfmention[name_case]
+                return self.mentions_self[name_case]
             
             else:
                 request = await self.api.groups.getById(

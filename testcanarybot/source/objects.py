@@ -10,6 +10,7 @@ import random
 import typing
 import sqlite3
 
+
 class mention:
     __slots__ = ('id', 'call') 
     def __init__(self, page_id, mention = ""):
@@ -60,6 +61,10 @@ class data:
         
         else:
             return attr    
+
+
+class key(data):
+    pass
 
 class package(data):
     __any = "$any"
@@ -159,54 +164,58 @@ class libraryModule:
         self.void_react = False
         self.event_handlers = {} # event.abstract_event: []
 
-    def event(events: list):
-        def decorator(coro: asyncio.coroutine):
-            def registerCommand(self, *args, **kwargs):
-                try:
-                    if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
-                        raise TypeError("Incorrect coroutine registered as command handler!")
+    def registerCommand(self, ):
+        pass
 
-                    else:
-                        for i in events:
-                            if not isinstance(i, enums_events):
-                                raise TypeError("Incorrect type!")
-
-                            elif i not in self.event_handlers and i != enums_events.message_new:
-                                self.event_handlers[i] = []
-
-                            self.event_handlers[i].append(coro)
-                    return coro(self, *args, **kwargs)
-                except Exception as e:
-                    print(e)
-            return registerCommand
-        return decorator
-
-
-    def priority(commands: list): 
-        def decorator(coro: asyncio.coroutine):
-            def registerCommand(self, *args, **kwargs):
+def event(events: list):
+    def decorator(coro: asyncio.coroutine):
+        def registerCommand(self, *args, **kwargs):
+            try:
                 if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
-                    raise TypeError("Incorrect coroutine registered as priority handler!")
+                    raise TypeError("Incorrect coroutine registered as command handler!")
 
                 else:
-                    self.commands.extend(commands)
+                    for i in events:
+                        if not isinstance(i, enums_events):
+                            raise TypeError("Incorrect type!")
 
-                    self.handler_dict[coro.__name__] = {'handler': coro, 'commands': commands}
+                        elif i not in self.event_handlers and i != enums_events.message_new:
+                            self.event_handlers[i] = []
+
+                        self.event_handlers[i].append(coro)
                 return coro(self, *args, **kwargs)
-            return registerCommand
-        return decorator
-    
+            except Exception as e:
+                print(e)
+            
+        return registerCommand
+    return decorator
 
-    def void(coro: asyncio.coroutine):
-        def registerCommand(self, *args, **kwargs):
+
+def priority(commands: list): 
+    def decorator(coro: typing.Generator):
+        def registerCommand(self: libraryModule, *args, **kwargs):
             if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
-                raise TypeError("Incorrect coroutine registered as void handler!")
+                raise TypeError("Incorrect coroutine registered as priority handler!")
 
             else:
-                self.void_react = coro
+                self.commands.extend(commands)
 
+                self.handler_dict[coro.__name__] = {'handler': coro, 'commands': commands}
             return coro(self, *args, **kwargs)
         return registerCommand
+    return decorator
+
+
+def void(coro: typing.Generator):
+    def registerCommand(self: libraryModule, *args, **kwargs):
+        if coro.__name__ in ['package_handler', 'priority', 'void', 'event']:
+            raise TypeError("Incorrect coroutine registered as void handler!")
+
+        else:
+            self.void_react = coro
+
+        return coro(self, *args, **kwargs)
+    return registerCommand
 
 
 
@@ -214,7 +223,335 @@ class tools:
     """
     sampled tools object
     """
-    api = object()
+    class api:
+        pass
+
+        # class account:
+        #     class ban: 
+        #         pass
+
+        #     class changePassword: 
+        #         pass
+
+        #     class getActiveOffers: 
+        #         pass
+
+        #     class getAppPermissions: 
+        #         pass
+
+        #     class getBanned: 
+        #         pass
+
+        #     class getCounters: 
+        #         pass
+
+        #     class getInfo: 
+        #         pass
+
+        #     class getProfileInfo: 
+        #         pass
+
+        #     class getPushSettings: 
+        #         pass
+
+        #     class registerDevice: 
+        #         pass
+
+        #     class saveProfileInfo: 
+        #         pass
+
+        #     class setInfo: 
+        #         pass
+
+        #     class setNameInMenu: 
+        #         pass
+
+        #     class setOffline: 
+        #         pass
+
+        #     class setOnline: 
+        #         pass
+
+        #     class setPushSettings: 
+        #         pass
+
+        #     class setSilenceMode: 
+        #         pass
+
+        #     class unban: 
+        #         pass
+
+        #     class unregisterDevice:
+        #         pass
+
+        # class ads:
+        #     class addOfficeUsers: 
+        #         pass
+        #     class checkLink: 
+        #         pass
+        #     class createAds: 
+        #         pass
+        #     class createCampaigns: 
+        #         pass
+        #     class createClients: 
+        #         pass
+        #     class createLookalikeRequest: 
+        #         pass
+        #     class createTargetGroup: 
+        #         pass
+        #     class createTargetPixel: 
+        #         pass
+        #     class deleteAds: 
+        #         pass
+        #     class deleteCampaigns: 
+        #         pass
+        #     class deleteClients: 
+        #         pass
+        #     class deleteTargetGroup: 
+        #         pass
+        #     class deleteTargetPixel: 
+        #         pass
+        #     class getAccounts: 
+        #         pass
+        #     class getAds: 
+        #         pass
+        #     class getAdsLayout: 
+        #         pass
+        #     class getAdsTargeting: 
+        #         pass
+        #     class getBudget: 
+        #         pass
+        #     class getCampaigns: 
+        #         pass
+        #     class getCategories: 
+        #         pass
+        #     class getClients: 
+        #         pass
+        #     class getDemographics: 
+        #         pass
+        #     class getFloodStats: 
+        #         pass
+        #     class getLookalikeRequests: 
+        #         pass
+        #     class getMusicians: 
+        #         pass
+        #     class getMusiciansByIds: 
+        #         pass
+        #     class getOfficeUsers: 
+        #         pass
+        #     class getPostsReach: 
+        #         pass
+        #     class getRejectionReason: 
+        #         pass
+        #     class getStatistics: 
+        #         pass
+        #     class getSuggestions: 
+        #         pass
+        #     class getTargetGroups: 
+        #         pass
+        #     class getTargetPixels: 
+        #         pass
+        #     class getTargetingStats: 
+        #         pass
+        #     class getUploadURL: 
+        #         pass
+        #     class getVideoUploadURL: 
+        #         pass
+        #     class importTargetContacts: 
+        #         pass
+        #     class removeOfficeUsers: 
+        #         pass
+        #     class removeTargetContacts: 
+        #         pass
+        #     class saveLookalikeRequestResult: 
+        #         pass
+        #     class shareTargetGroup: 
+        #         pass
+        #     class updateAds: 
+        #         pass
+        #     class updateCampaigns: 
+        #         pass
+        #     class updateClients: 
+        #         pass
+        #     class updateOfficeUsers: 
+        #         pass
+        #     class updateTargetGroup: 
+        #         pass
+        #     class updateTargetPixel:
+        #         pass
+
+        # class appWidgets: 
+        #     class getAppImageUploadServer: 
+        #         pass
+        #     class getAppImages: 
+        #         pass
+        #     class getGroupImageUploadServer: 
+        #         pass
+        #     class getGroupImages: 
+        #         pass
+        #     class getImagesById: 
+        #         pass
+        #     class saveAppImage: 
+        #         pass
+        #     class saveGroupImage: 
+        #         pass
+        #     class update: 
+        #         pass
+
+        # class apps: 
+        #     class deleteAppRequests: 
+        #         pass
+        #     class get: 
+        #         pass
+        #     class getCatalog: 
+        #         pass
+        #     class getFriendsList: 
+        #         pass
+        #     class getLeaderboard: 
+        #         pass
+        #     class getMiniAppPolicies: 
+        #         pass
+        #     class getScopes: 
+        #         pass
+        #     class getScore: 
+        #         pass
+        #     class promoHasActiveGift: 
+        #         pass
+        #     class promoUseGift: 
+        #         pass
+        #     class sendRequest:
+        #         pass
+
+        # class board:
+        #     class addTopic: 
+        #         pass
+        #     class closeTopic: 
+        #         pass
+        #     class createComment: 
+        #         pass
+        #     class deleteComment: 
+        #         pass
+        #     class deleteTopic: 
+        #         pass
+        #     class editComment: 
+        #         pass
+        #     class editTopic: 
+        #         pass
+        #     class fixTopic: 
+        #         pass
+        #     class getComments: 
+        #         pass
+        #     class getTopics: 
+        #         pass
+        #     class openTopic: 
+        #         pass
+        #     class restoreComment: 
+        #         pass
+        #     class unfixTopic: 
+        #         pass
+
+        # class database: 
+        #     pass
+
+        # class docs: 
+        #     pass
+
+        # class fave: 
+        #     pass
+
+        # class friends: 
+        #     pass
+
+        # class gifts: 
+        #     pass
+
+        # class groups: 
+        #     pass
+        
+        # class leads: 
+        #     pass
+        
+        # class likes: 
+        #     pass
+        
+        # class market: 
+        #     pass
+        
+        # class messages: 
+        #     pass
+        
+        # class newsfeed: 
+        #     pass
+        
+        # class notes: 
+        #     pass
+        
+        # class notifications: 
+        #     pass
+        
+        # class pages: 
+        #     pass
+        
+        # class photos: 
+        #     pass
+        
+        # class polls: 
+        #     pass
+        
+        # class search: 
+        #     pass
+        
+        # class secure: 
+        #     pass
+        
+        # class stats: 
+        #     pass
+        
+        # class status: 
+        #     pass
+        
+        # class storage: 
+        #     pass
+        
+        # class users: 
+        #     pass
+        
+        # class utils: 
+        #     pass
+        
+        # class video: 
+        #     pass
+        
+        # class donut: 
+        #     pass
+        
+        # class podcasts: 
+        #     pass
+        
+        # class leadforms: 
+        #     pass
+        
+        # class prettycards: 
+        #     pass
+        
+        # class stories: 
+        #     pass
+        
+        # class appwidgets: 
+        #     pass
+        
+        # class streaming: 
+        #     pass
+        
+        # class orders: 
+        #     pass
+        
+        # class wall: 
+        #     pass
+
+        # class widgets:
+        #     pass
+
     http = object()
 
     mentions = list()

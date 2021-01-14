@@ -232,7 +232,7 @@ class app:
         
         while times != 0:
             times -= 1
-            init_async(self.__polling(), loop=main_loop)
+            init_async(self.__polling())
         
         self.getTools().system_message(module = 'longpoll',
             write = self.getTools().values.LONGPOLL_CLOSE)
@@ -318,4 +318,4 @@ class app:
         """
         Init test parsing with received event 
         """
-        self.getThread().create_task(event)
+        self.__getThread().create_task(event)
