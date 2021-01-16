@@ -56,11 +56,19 @@ class handler(threading.Thread):
         self.mentions = self.library.tools.mentions
 
         self.thread_loop = asyncio.new_event_loop()
+        self.thread_loop.set_exception_handler(self.exception_handler)
         asyncio.set_event_loop(self.thread_loop)
         self.library.tools.http.create_session(self)
 
         self.thread_loop.run_forever()
 
+    def exception_handler(self, loop, context):
+        try:
+            raise context['exception']
+
+        except Exception as e:
+            print(type(context['exception']).__name__)
+            print(e)
 
     def create_task(self, package):
         if package.type == events.message_new or package.type in self.library.handlers['events']:
@@ -80,19 +88,21 @@ class handler(threading.Thread):
             
             elif package.text != '':
                 message = package.text.split()
-                message[0] = message[0][:-1] if message[0][-1] == ',' else message[0]
-                if message[0] in self.mentions:
+                print(message)
+                print(self.mentions)
+                if (message[0].lower() in self.mentions) or (message[0][:-1].lower() in self.mentions):
                     if len(message) > 1:
                         message.pop(0)
                         package.params.command = True
+                else:
+                    package.params.command = False
+
                 package = await self.findMentions(package, message)
 
             elif len(package.attachments) > 0: 
                 package.params.attachments = True
 
-            package.params.command = len(package.items) > 0
-            if self.all_messages or package.params.command: 
-                await self.handler(package)
+            await self.handler(package)
             
         else:
             await self.handler(package)
@@ -126,30 +136,36 @@ class handler(threading.Thread):
 
     async def handler(self, package: objects.package):
         package.items.append(self.library.tools.values.ENDLINE)
-        
         try:
-            if package.params.command and package.items[0] in self.library.handlers['priority'].keys():
-                for i in self.library.handlers['priority'][package.items[0]]:
-                    module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
+            if package.type == events.message_new:
+                test = objects.WaitReply(package)
+                if test in self.library.tools.waiting_replies:
+                    self.library.tools.waiting_replies[test] = package
 
-                    self.thread_loop.create_task(i(module, self.library.tools, package))
-                    await asyncio.sleep(0.00001)
+                elif package.params.command and len(package.items) > 0 and package.items[0] in self.library.handlers['priority'].keys():
+                    for i in self.library.handlers['priority'][package.items[0]]:
+                        module = self.library.modules[i.__module__]
+                        
+                        self.thread_loop.create_task(i(module, self.library.tools, package))
+                        await asyncio.sleep(0.00001)
 
-            elif self.library.void_react and package.params.command or package.params.command:
-                for i in self.library.handlers['void']:
-                    module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
-                    self.thread_loop.create_task(i(module, self.library.tools, package))
+                elif self.library.void_react:
+                    if self.all_messages or package.params.command:
+                        for i in self.library.handlers['void']:
+                            module = self.library.modules[i.__module__]
 
-                    await asyncio.sleep(0.00001)
+                            self.thread_loop.create_task(i(module, self.library.tools, package))
+                            await asyncio.sleep(0.00001)
 
             elif package.type in self.library.handlers['events'].keys():
                 for i in self.library.handlers['events'][package.type]:
-                    module = self.library.modules[i.__module__[i.__module__.rfind(".") + 1:]]
+                    module = self.library.modules[i.__module__]
                     self.thread_loop.create_task(i(module, self.library.tools, package))
 
                     await asyncio.sleep(0.00001)
         except Exception as e:
             self.library.tools.system_message(module = "exception_handler", write = e)
+
 
 class databases:
     def __init__(self, names: list):
@@ -247,7 +263,6 @@ class library:
             if len(listdir) == 0:
                 raise exceptions.LibraryError(
                     self.tools.values.SESSION_LIBRARY_ERROR)
-            
             init_async(
                     asyncio.wait(
                         [
@@ -262,12 +277,12 @@ class library:
     
 
     async def upload_handler(self, module_name):
-        module = importlib.import_module("library." + module_name[:-3] if module_name.endswith('.py') else module_name + 'main')
-
-        if module_name[-3:] == '.py': module_name = module_name[:-3]
+        module_name = "library." + (module_name[:-3] if module_name.endswith('.py') else module_name + '.main')
+        module = importlib.import_module(module_name)
 
         if hasattr(module, 'Main'):
             moduleObj = module.Main()
+            moduleObj.module_name = module_name
 
             if moduleObj.v in self.supp_v:
                 pass
@@ -351,6 +366,7 @@ class tools(objects.tools):
         self.assets = assets
         self.http = http
         self.log = log
+        self.waiting_replies = {}
         
         init_async(self.__setShort())
 
@@ -364,7 +380,18 @@ class tools(objects.tools):
     async def __setShort(self):
         res = await self.api.groups.getById(group_id=self.group_id)
         self.group_address = res[0].screen_name
-        return 1
+        return
+    
+
+    async def wait_reply(self, package):
+        wait = objects.WaitReply(package)
+        self.waiting_replies[wait] = False
+
+        while True:
+            if self.waiting_replies[wait]: 
+                return self.waiting_replies.pop(wait)
+            
+            await asyncio.sleep(0)
 
 
     def system_message(self, *args, write = None, module = None, newline = False):

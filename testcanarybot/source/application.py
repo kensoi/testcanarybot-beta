@@ -150,7 +150,7 @@ class app:
         """
         Setup custom mentions instead "@{groupadress}"
         """
-        self.__library.tools.values.set("MENTIONS", [self.__library.tools.group_mention, *[str(i).lower() for i in mentions]])
+        self.__library.tools.mentions = [self.__library.tools.group_mention, *[str(i).lower() for i in mentions]]
 
 
     def getModule(self, name: str) -> objects.libraryModule:

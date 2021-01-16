@@ -154,7 +154,12 @@ class package(data):
             
         return True
             
-        
+
+def WaitReply(packagetest):
+    return f"${packagetest.peer_id}_{packagetest.from_id}"
+
+    
+
 class libraryModule:
     codename = "testcanarybot_module"
     name = "testcanarybot sample module"
