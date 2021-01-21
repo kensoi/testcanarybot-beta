@@ -2,17 +2,13 @@ import asyncio
 import importlib
 import json
 import os
-import six
 import threading
-import traceback
+import typing
 
-from typing import Union
-from types import MethodType
-
-from . import objects
-from . import exceptions
-from .values import global_expressions, Pages
-from .enums import events
+from .others import objects
+from .others import exceptions
+from .others.values import global_expressions, Pages
+from .others.enums import events
 
 class _assets:
     def __init__(self):
@@ -88,14 +84,10 @@ class handler(threading.Thread):
             
             elif package.text != '':
                 message = package.text.split()
-                print(message)
-                print(self.mentions)
-                if (message[0].lower() in self.mentions) or (message[0][:-1].lower() in self.mentions):
-                    if len(message) > 1:
-                        message.pop(0)
-                        package.params.command = True
-                else:
-                    package.params.command = False
+                package.params.command = False
+                if len(message) > 1 and ((message[0].lower() in self.mentions) or (message[0][:-1].lower() in self.mentions)):
+                    package.params.gment = message.pop(0)
+                    package.params.command = True
 
                 package = await self.findMentions(package, message)
 
@@ -239,9 +231,9 @@ class library:
         'events': {} # event.abstract_event: [handler1, handler2]
     }
 
-    def __init__(self, v, group_id, api, http, log):
-        self.supp_v = v
-        self.tools = tools(group_id, api, http, log)
+    def __init__(self, tools):
+        self.tools = tools
+        self.list = []
         self.void_react = False
         self.commands = []
 
@@ -255,6 +247,7 @@ class library:
 
     def upload(self, isReload = False, loop = asyncio.get_event_loop()):
         self.modules = {}
+
         if 'library' in os.listdir(os.getcwd()):
             self.tools.system_message(str(self.tools.values.LIBRARY_GET), module = "library.uploader")
             
@@ -283,28 +276,19 @@ class library:
         if hasattr(module, 'Main'):
             moduleObj = module.Main()
             moduleObj.module_name = module_name
-
-            if moduleObj.v in self.supp_v:
-                pass
-            else:
-                return self.tools.system_message(self.tools.values.MODULE_FAILED_VERSION.value.format(
-                    module = module_name), module = "library.uploader")
                     
-            if hasattr(moduleObj, "start"):
-                await moduleObj.start(self.tools)
-                
             if not issubclass(type(moduleObj), objects.libraryModule):
                 return self.tools.system_message(self.tools.values.MODULE_FAILED_SUBCLASS.value.format(
                     module = module_name), module = "library.uploader")
+
+            if hasattr(moduleObj, "start"):
+                await moduleObj.start(self.tools)
 
         else:
             return self.tools.system_message(self.tools.values.MODULE_FAILED_BROKEN.value.format(
                 module = module_name), module = "library.uploader")
                 
-        dir_module = dir(moduleObj)
-        dir_obj = dir(objects.libraryModule)
-        coros = set(dir_module) - set(dir_obj)
-        for coro_name in coros:
+        for coro_name in set(dir(moduleObj)) - set(dir(objects.libraryModule)):
             coro = getattr(moduleObj, coro_name)
 
             if coro_name not in ['start', 'priority', 'void', 'event'] and callable(coro):
@@ -346,14 +330,8 @@ class library:
             message += self.tools.values.MODULE_INIT_VOID.value
 
         self.modules[module_name] = moduleObj
+        self.list = module_name
         return self.tools.system_message(write = message, module = "library.uploader")
-
-
-    def getCompactible(self, event):
-        if event in self.handlers['events'].keys():
-            return self.handlers['events'][event]
-        else:
-            return []
 
 
 class tools(objects.tools):
@@ -494,45 +472,6 @@ class tools(objects.tools):
 
     async def isMember(self, from_id: int, peer_id: int):
         return from_id in await self.getMembers(peer_id)
-
-
-class api:
-    __slots__ = ('http', '_method', '_string')
-
-    def __init__(self, http, method, string = None):
-        self.http = http
-        self._method = method    
-        self._string = string
-
-
-    def __getattr__(self, method):
-        if '_' in method:
-            m = method.split('_')
-            method = m[0] + ''.join(i.title() for i in m[1:])
-
-        self._string = self._string + "." if self._string else ""
-
-        return api(
-            self.http, self._method,
-            (self._string if self._method else '') + method
-        )
-
-    async def __call__(self, **kwargs) -> Union[objects.data, dict]:
-        for k, v in six.iteritems(kwargs):
-            if isinstance(v, (list, tuple)):
-                kwargs[k] = ','.join(str(x) for x in v)
-
-        result = await self._method(self._string, kwargs)
-        if isinstance(result, list):
-            return [
-                objects.data(**i) for i in result
-            ]
-        
-        elif isinstance(result, dict):
-            return objects.data(**result)
-
-        else:
-            return result
 
 
 def init_async(coro: asyncio.coroutine, loop = asyncio.get_event_loop()):

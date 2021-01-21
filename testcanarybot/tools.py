@@ -6,8 +6,8 @@ import json
 import os
 import six
 
-from .objects import Object
-from .library import assets, init_async
+from .source.others.objects import data
+from .source.library import assets, init_async
 
 class uploader:
     __slots__ = ('__api', '__http')
@@ -40,7 +40,7 @@ class uploader:
             values['chat_id'] = peer_id - 2000000000
 
         response = await self.__api.photos.getChatUploadServer(**values)
-        response = self.__http.post(url.upload_url, data = self.convertAsset(photo))
+        response = self.__http.post(response.upload_url, data = self.convertAsset(photo))
 
         return self.__api.messages.setChatPhoto(file = response['response'])
 
@@ -131,7 +131,7 @@ class uploader:
                     response = None
 
                     if isinstance(files[i], str): 
-                        response = self.assets(files[i], 'rb', buffering = 0)
+                        response = assets(files[i], 'rb', buffering = 0)
                     elif isinstance(files[i], bytes): 
                         response = BytesIO(files[i])
                     else:
