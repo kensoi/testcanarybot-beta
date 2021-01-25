@@ -5,7 +5,6 @@ import typing
 
 class expression:
     __slots__ = ('type', 'value')
-    value = None
 
     def __str__(self):
         return self.value

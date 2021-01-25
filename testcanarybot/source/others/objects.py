@@ -47,6 +47,7 @@ class data:
 
         for i in self.__dict__.keys():
             setattr(self, i, self.__convert(getattr(self, i)))
+        self.raw = entries
             
 
     def __convert(self, attr):

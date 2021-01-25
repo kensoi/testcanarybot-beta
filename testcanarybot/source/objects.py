@@ -45,6 +45,7 @@ class database:
 class data:
     def __init__(self, **entries):
         self.__dict__.update(entries)
+        self.raw = entries
 
         for i in self.__dict__.keys():
             setattr(self, i, self.__convert(getattr(self, i)))
@@ -572,6 +573,9 @@ class tools:
         # class widgets:
         #     pass
 
+    class values:
+        pass
+    
     http = object()
 
     mentions = list()

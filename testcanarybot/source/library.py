@@ -252,7 +252,7 @@ class library:
             self.tools.system_message(str(self.tools.values.LIBRARY_GET), module = "library.uploader")
             
             listdir = os.listdir(os.getcwd() + '\\library\\')
-            listdir.remove("__pycache__")
+            if "__pycache__" in listdir: listdir.remove("__pycache__")
             if len(listdir) == 0:
                 raise exceptions.LibraryError(
                     self.tools.values.SESSION_LIBRARY_ERROR)
@@ -339,6 +339,7 @@ class tools(objects.tools):
     __db = databases(("system", "system.db"))
 
     def __init__(self, group_id, api, http, log):
+        self.values = global_expressions()
         self.group_id = group_id
         self.api = api
         self.assets = assets
@@ -352,7 +353,6 @@ class tools(objects.tools):
         self.mentions = [self.group_mention]
 
         self.get = self.__db.get
-        self.values = global_expressions()
 
     
     async def __setShort(self):

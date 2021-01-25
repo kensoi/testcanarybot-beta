@@ -90,19 +90,19 @@ class app:
         self.__av = api_version
         self.handlers_count = handlers_count
 
-        self.__api = api(self.http)
+        self.__api = api(self.http, self.method)
         self.tools = tools(self.__group_id, self.__api, self.http, self.log)
 
-        self.__library = library(tools)
+        self.__library = library(self.tools)
         
         atexit.register(self.__close)
-        self.__library.tools.system_message(
+        self.tools.system_message(
             module = self.http.__class__.__name__, 
             write = str(self.tools.values.SESSION_START))
 
 
     def __close(self):
-        self.__library.tools.system_message(module = self.http.__class__.__name__, write = self.tools.values.SESSION_CLOSE)
+        self.tools.system_message(module = self.http.__class__.__name__, write = self.tools.values.SESSION_CLOSE)
 
         if self.log.closed:
             self.log = assets("log.txt", "a+", encoding="utf-8")
@@ -119,44 +119,34 @@ class app:
     async def method(self, method: str, values=None):
         """ 
         Init API method
-
-        method [str] - method name
-        values [dict] - parameters.
+        method: str - method name
+        values: dict - parameters.
         """
         data = values if values else dict()
         delay = self.RPS_DELAY - (time.time() - self.last_request)
 
         if 'group_id' in data: data['group_id'] = self.__group_id
         data['v'] = self.__av
-
-        access_type = values.get('type', "bot")
-
-        if access_type in ["bot", "service"]:
-            if access_type == "service" and self.__service != "":
-                data['access_token'] = self.__service
-            else:
-                data['access_token'] = self.__token
-        else: 
-            raise ValueError("Incorrect method type")
+        data['access_token'] = self.__token
 
 
         if delay > 0: await asyncio.sleep(delay)
 
         response = await self.http.post('https://api.vk.com/method/' + method, data = data)
-        response = await response.json(content_type = None)
+        response = await response.json()
 
         self.last_request = time.time()
         if 'error' in response: 
             raise exceptions.MethodError(f"[{response['error']['error_code']}] {response['error']['error_msg']}")
 
-        return response['response']    
+        return response['response']     
 
 
     def setMentions(self, mentions: list):
         """
         Setup custom mentions instead "@{groupadress}"
         """
-        self.__library.tools.mentions = [self.__library.tools.group_mention, *[str(i).lower() for i in mentions]]
+        self.tools.mentions = [self.tools.group_mention, *[str(i).lower() for i in mentions]]
 
 
     def getModule(self, name: str) -> objects.libraryModule:
