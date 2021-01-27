@@ -62,14 +62,32 @@ class handler(threading.Thread):
         try:
             raise context['exception']
 
+        except exceptions.CallVoid as e:
+            for i in self.library.handlers['void']:
+                module = self.library.modules[i.__module__]
+
+                peer_id, from_id = str(e)[1:].split("_")
+                package = objects.package(**{
+                    'peer_id': int(peer_id), 
+                    'from_id': int(from_id), 
+                    'items': [self.library.tools.values.NOREPLY]
+                    })
+                task = self.thread_loop.create_task(i(module, self.library.tools, package))
+
         except Exception as e:
             print(type(context['exception']).__name__)
             print(e)
 
     def create_task(self, package):
-        if package.type == events.message_new or package.type in self.library.handlers['events']:
-            asyncio.run_coroutine_threadsafe(self.resolver(package), self.thread_loop)
+        if isinstance(package, objects.package):
+            if package.type == events.message_new or package.type in self.library.handlers['events']:
+                asyncio.run_coroutine_threadsafe(self.resolver(package), self.thread_loop)
 
+        else:
+            asyncio.run_coroutine_threadsafe(self.__start_module(package), self.thread_loop)
+
+    async def __start_module(self, package):
+        self.thread_loop.create_task(package(self.library.tools))
 
     async def resolver(self, package):
         if package.type == events.message_new:
@@ -281,9 +299,6 @@ class library:
                 return self.tools.system_message(self.tools.values.MODULE_FAILED_SUBCLASS.value.format(
                     module = module_name), module = "library.uploader")
 
-            if hasattr(moduleObj, "start"):
-                await moduleObj.start(self.tools)
-
         else:
             return self.tools.system_message(self.tools.values.MODULE_FAILED_BROKEN.value.format(
                 module = module_name), module = "library.uploader")
@@ -353,8 +368,13 @@ class tools(objects.tools):
         self.mentions = [self.group_mention]
 
         self.get = self.__db.get
+        threading.current_thread()
 
-    
+
+    def getCurrentThread(self):
+        return threading.current_thread()
+
+
     async def __setShort(self):
         res = await self.api.groups.getById(group_id=self.group_id)
         self.group_address = res[0].screen_name

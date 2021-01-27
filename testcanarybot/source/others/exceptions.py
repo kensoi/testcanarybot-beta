@@ -16,6 +16,9 @@ class LibraryException(LibraryError):
 class LibraryReload(LibraryException):
     pass
 
+class CallVoid(LibraryException):
+    pass
+
 class Quit(LibraryException):
     pass
 

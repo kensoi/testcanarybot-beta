@@ -193,8 +193,14 @@ class app:
         for i in range(self.handlers_count):
             thread = handler(self.__library, i)
             thread.start()
+            
             self.__handlerlists.append(thread)
-    
+
+        for i in self.__library.modules.values():
+            if hasattr(i, "start"):
+                print(1)
+                self.__getThread().create_task(i.start)
+                
 
     def start_polling(self) -> None:
         """

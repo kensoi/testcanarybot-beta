@@ -73,6 +73,7 @@ class global_expressions:
         self.__values["MESSAGE_HANDLER_IT"] = expr(values.log, "\t\ttext: {text}")
 
         self.__values["ENDLINE"] = expr(values.workspace, ":::ENDLINE:::")
+        self.__values["NOREPLY"] = expr(values.workspace, ":::NOREPLY:::")
         self.__values["TEST"] = expr(values.tumbler, ":::TEST:::")
         self.__values["BEEPA_PAPASA"] = expr(values.hidden, ":::NYASHKA:NYASHKA:::")
         self.__values["LISTITEM"] = expr(values.expr, "\u2022")

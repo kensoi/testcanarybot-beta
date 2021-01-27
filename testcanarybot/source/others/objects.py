@@ -67,8 +67,8 @@ class key(data):
     pass
 
 class package(data):
-    __any = "$any"
-    __str = "$str"
+    __item = "$item"
+    __items = "$items"
     __mention = "$mention"
     __mentions = "$mentions"
     __expr = "$expr"
@@ -102,8 +102,8 @@ class package(data):
     def check(self, command: list) -> typing.Union[bool, list]:
         """
         Following keys:
-        $any - any string
-        $str - string item
+        $item - any string
+        $items - any string
         $expr - expression item
         $exprs - list from this item to the end is a list of expression objects
         $mention - mention item
@@ -111,8 +111,8 @@ class package(data):
         """
         if len(self.items) == 0:
             return False
-
-        if command[-1] not in ['$mentions', '$exprs']:
+        
+        if command[-1] not in [self.__mentions, self.__exprs, self.__items]:
             if len(command) + 1 != len(self.items): 
                 return False
 
@@ -120,13 +120,13 @@ class package(data):
             if command[i] == self.items[i]:
                 continue
                 
-            elif command[i] == self.__any:
+            elif command[i] == self.__item:
                 if not isinstance(self.items[i], str):
                     return False
                 continue
 
-            elif command[i] == self.__str and ([str(i) for i in self.items[i:]] == self.items[i:-1]):
-                return True
+            elif command[i] == self.__items:
+                return self.items[i:-1]
 
             elif command[i] == self.__expr:
                 if not isinstance(self.items[i], (expression, str)):
@@ -136,12 +136,11 @@ class package(data):
             elif command[i] == self.__mention:
                 if not isinstance(self.items[i], mention):
                     return False
-                return True
+                continue
 
             elif command[i] == self.__exprs:
-                for j in self.items[i:-1]:
-                    if not isinstance(j, expression):
-                        return False
+                if not isinstance(j, expression):
+                    return False
                 return self.items[i:-1]
 
             elif command[i] == self.__mentions:
@@ -165,7 +164,6 @@ class package(data):
 def WaitReply(packagetest):
     return f"${packagetest.peer_id}_{packagetest.from_id}"
 
-    
 
 class libraryModule:
     codename = "testcanarybot_module"
