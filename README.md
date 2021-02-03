@@ -3,5 +3,5 @@
 Здесь обновлений больше не будет. Чтобы ориентироваться по репозиторию, используйте [зеркало в Google Таблицах](https://docs.google.com/spreadsheets/d/1drgVXyJcHL2gquuxde_L12PqZw-3hRo0QsGyIFPVtRk/edit?usp=sharing)
 
 
-[kensoi doc](kensoi.github.io)  
+[kensoi doc](https://kensoi.github.io)  
 Андрей Прокофьев, 2020
