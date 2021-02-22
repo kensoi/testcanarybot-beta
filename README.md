@@ -5,7 +5,5 @@ If you visited this repo for looking at old versions, open the [master](https://
 
 ------
 
-kensoi.github.io
-
 Andrew Prokofieff 2020
 
