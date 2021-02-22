@@ -3,8 +3,9 @@ This is archived repository for testcanarybot development. Now development is lo
 
 If you visited this repo for looking at old versions, open the [master](https://github.com/kensoi/testcanarybot-beta/tree/master) branch.
 
-
+------
 
 kensoi.github.io
+
 Andrew Prokofieff 2020
 
